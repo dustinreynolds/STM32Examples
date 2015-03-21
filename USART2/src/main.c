@@ -38,15 +38,6 @@ void USART2_Configuration(void)
 {
   USART_InitTypeDef USART_InitStructure;
 
-  /* USARTx configuration ------------------------------------------------------*/
-  /* USARTx configured as follow:
-        - BaudRate = 9600 baud
-        - Word Length = 8 Bits
-        - One Stop Bit
-        - No parity
-        - Hardware flow control disabled (RTS and CTS signals)
-        - Receive and transmit enabled
-  */
   USART_InitStructure.USART_BaudRate = 9600;
   USART_InitStructure.USART_WordLength = USART_WordLength_8b;
   USART_InitStructure.USART_StopBits = USART_StopBits_1;

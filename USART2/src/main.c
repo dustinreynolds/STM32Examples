@@ -1,79 +1,21 @@
-
+/*
+ * main.c
+ *
+ *  Created on: Mar 21, 2015
+ *      Author: Dustin
+ */
 #include "stm32l1xx.h"
 
-/**************************************************************************************/
-
-void RCC_Configuration(void)
-{
-  /* --------------------------- System Clocks Configuration -----------------*/
-  /* USART1 clock enable */
-  RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2, ENABLE);
-
-  /* GPIOA clock enable */
-  RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
-}
-
-/**************************************************************************************/
-
-void GPIO_Configuration(void)
-{
-  GPIO_InitTypeDef GPIO_InitStructure;
-
-  /*-------------------------- GPIO Configuration ----------------------------*/
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_2 | GPIO_Pin_3; // PA.2 USART2_TX, PA.3 USART1_RX
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
-  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_Init(GPIOA, &GPIO_InitStructure);
-
-  /* Connect USART pins to AF */
-  GPIO_PinAFConfig(GPIOA, GPIO_PinSource2, GPIO_AF_USART2);
-  GPIO_PinAFConfig(GPIOA, GPIO_PinSource3, GPIO_AF_USART2);
-}
-
-/**************************************************************************************/
-
-void USART2_Configuration(void)
-{
-  USART_InitTypeDef USART_InitStructure;
-
-  USART_InitStructure.USART_BaudRate = 9600;
-  USART_InitStructure.USART_WordLength = USART_WordLength_8b;
-  USART_InitStructure.USART_StopBits = USART_StopBits_1;
-  USART_InitStructure.USART_Parity = USART_Parity_No;
-  USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
-
-  USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
-
-  USART_Init(USART2, &USART_InitStructure);
-
-  USART_Cmd(USART2, ENABLE);
-}
-
-/**************************************************************************************/
-
-void OutString(char *s)
-{
-  while(*s)
-  {
-    while(USART_GetFlagStatus(USART2, USART_FLAG_TXE) == RESET); // Wait for Empty
-
-    USART_SendData(USART2, *s++); // Send Char
-  }
-}
-
-/**************************************************************************************/
 
 int main(void)
 {
-  RCC_Configuration();
+  init_RCC_Configuration();
 
-  GPIO_Configuration();
+  init_GPIO_Configuration();
 
-  USART2_Configuration();
+  uart_Configuration();
 
-  OutString("Welcome to Nucleo L152RE\r\n");
+  uart_OutString("Welcome to Nucleo L152RE\r\n");
 
   while(1) // Don't want to exit
   {
@@ -88,26 +30,3 @@ int main(void)
     USART_SendData(USART2, Data); // Echo Char
   }
 }
-
-/**************************************************************************************/
-
-#ifdef  USE_FULL_ASSERT
-
-/**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
-void assert_failed(uint8_t* file, uint32_t line)
-{
-  /* User can add his own implementation to report the file name and line number,
-     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
-
-  while (1)
-  {}
-}
-#endif
-
-/**************************************************************************************/

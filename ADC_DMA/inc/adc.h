@@ -26,7 +26,10 @@ typedef struct
 #define ADC_CONV_BUFF_SIZE 20
 #define MAX_TEMP_CHNL 16
 
+#define ADC_CONV_BUFF_SIZE 20
+
 float adc_getCalTemp(void);
+
 
 
 #endif /* ADC_H_ */

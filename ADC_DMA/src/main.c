@@ -5,10 +5,13 @@
  *      Author: Dustin
  */
 #include <stdio.h>
+#include "stdbool.h"
 #include "stm32l1xx.h"
 #include "init.h"
 #include "uart.h"
 #include "adc.h"
+
+extern bool flag_ADCDMA_TransferComplete;
 
 int main(void)
 {
@@ -21,7 +24,17 @@ int main(void)
 
 	init_GPIO_Configuration();
 
+	/* Set internal voltage regulator to 1.8V */
+	PWR_VoltageScalingConfig(PWR_VoltageScaling_Range1);
+
+	/* Wait Until the Voltage Regulator is ready */
+	while (PWR_GetFlagStatus(PWR_FLAG_VOS) != RESET) ;
+
+	adc_configureDMA();
+
 	adc_init();
+
+	adc_acquireTemperatureData();
 
 	uart_Configuration(UART_POLLING);
 
@@ -29,9 +42,15 @@ int main(void)
 
 	while(1){
 
-		coreTemp = adc_getCalTemp();
-		snprintf(buffer, sizeof(buffer), "Temp %f\n\n", coreTemp);
-		uart_OutString(buffer);
+		if (flag_ADCDMA_TransferComplete){
+			adc_processTempData();
+			coreTemp = adc_getCalTemp();
+			snprintf(buffer, sizeof(buffer), "Temp %f\n\n", coreTemp);
+			uart_OutString(buffer);
+
+			//start next acquire session.
+			adc_acquireTemperatureData();
+		}
 
 		uart_OutString("Switching to interrupt mode\r\n");
 

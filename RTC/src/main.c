@@ -7,41 +7,42 @@
 #include "stm32l1xx.h"
 #include "uart.h"
 
+__IO uint8_t showtime[50] = {0};
+__IO uint8_t showdate[50] = {0};
+
+extern RTC_DateTypeDef RTC_DateStructure;
+extern RTC_TimeTypeDef RTC_TimeStructure;
 
 int main(void)
 {
+	uint32_t i;
 	init_RCC_Configuration();
 
 	init_GPIO_Configuration();
 
-	uart_Configuration(UART_POLLING);
+	RTC_Config();
+
+	uart_Configuration(UART_INTERRUPT_RX);
 
 	uart_OutString("Welcome to Nucleo L152RE\r\n");
 
 	while(1){
 
-		uart_OutString("Switching to interrupt mode\r\n");
+		/* Get the RTC current Time */
+		RTC_GetTime(RTC_Format_BIN, &RTC_TimeStructure);
+		/* Get the RTC current Date */
+		RTC_GetDate(RTC_Format_BIN, &RTC_DateStructure);
+		/* Display time Format : hh:mm:ss */
+		sprintf((char*)showtime,"%.2d:%.2d:%.2d",RTC_TimeStructure.RTC_Hours, RTC_TimeStructure.RTC_Minutes, RTC_TimeStructure.RTC_Seconds);
+		/* Display date Format : mm-dd-yy */
+		sprintf((char*)showdate,"%.2d-%.2d-%.2d",RTC_DateStructure.RTC_Month, RTC_DateStructure.RTC_Date, 2000 + RTC_DateStructure.RTC_Year);
 
-		uart_switch_mode(UART_INTERRUPT_RX);
-		uint32_t i = 0;
-		for (i = 0; i<80000000; i++);  //roughly 10 second delay
+		uart_OutString("Time:");
+		uart_OutString(showtime);
+		uart_OutString("  Date: ");
+		uart_OutString(showdate);
+		uart_OutString("\r\n");
 
-		uart_OutString("Switching to polling mode\r\n");
-
-		uart_switch_mode(UART_POLLING);
-
-		for (i = 0; i < 8000000; i++){
-			uint16_t Data;
-
-			/*Only get a character if it is ready*/
-			if(USART_GetFlagStatus(USART2, USART_FLAG_RXNE) != RESET){
-
-				Data = USART_ReceiveData(USART2); // Collect Char
-
-				while(USART_GetFlagStatus(USART2, USART_FLAG_TXE) == RESET); // Wait for Empty
-
-				USART_SendData(USART2, Data); // Echo Char
-			}
-		}
+		for (i = 0; i<800000; i++);  //roughly 10 second delay
 	}
 }

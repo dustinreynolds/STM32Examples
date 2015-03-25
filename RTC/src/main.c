@@ -6,6 +6,7 @@
  */
 #include "stm32l1xx.h"
 #include "uart.h"
+#include "rtc.h"
 
 __IO uint8_t showtime[50] = {0};
 __IO uint8_t showdate[50] = {0};
@@ -33,7 +34,7 @@ int main(void)
 		/* Get the RTC current Date */
 		RTC_GetDate(RTC_Format_BIN, &RTC_DateStructure);
 		/* Display time Format : hh:mm:ss */
-		sprintf((char*)showtime,"%.2d:%.2d:%.2d",RTC_TimeStructure.RTC_Hours, RTC_TimeStructure.RTC_Minutes, RTC_TimeStructure.RTC_Seconds);
+		sprintf((char*)showtime,"%.2d:%.2d:%.2d:%04d",RTC_TimeStructure.RTC_Hours, RTC_TimeStructure.RTC_Minutes, RTC_TimeStructure.RTC_Seconds, RTC_GetSubSecond());
 		/* Display date Format : mm-dd-yy */
 		sprintf((char*)showdate,"%.2d-%.2d-%.2d",RTC_DateStructure.RTC_Month, RTC_DateStructure.RTC_Date, 2000 + RTC_DateStructure.RTC_Year);
 

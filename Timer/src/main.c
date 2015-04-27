@@ -7,12 +7,24 @@
 #include "stm32l1xx.h"
 #include "uart.h"
 
+void TIM2_IRQHandler()
+{
+    if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET)
+    {
+        TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
+        GPIOC->ODR ^= GPIO_Pin_6;
+        GPIOA->ODR ^= GPIO_Pin_5;
+    }
+}
+
 
 int main(void)
 {
 	init_RCC_Configuration();
 
 	init_GPIO_Configuration();
+
+	init_TIM2_Configuration();
 
 	uart_Configuration(UART_POLLING);
 

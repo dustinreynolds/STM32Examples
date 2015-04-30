@@ -7,15 +7,23 @@
 #include "stm32l1xx.h"
 #include "uart.h"
 
+volatile static TIM2_flag = 0;
 void TIM2_IRQHandler()
 {
     if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET)
     {
         TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
-        GPIOC->ODR ^= GPIO_Pin_6;
+        TIM2_flag = 1;
     }
 }
 
+void delayus(uint32_t usec){
+	TIM2_flag = 0;
+	init_TIM2_Change_Period(usec);
+	while(TIM2_flag == 0){
+		__WFI();
+	};
+}
 
 int main(void)
 {
@@ -26,6 +34,13 @@ int main(void)
 	init_GPIO_Configuration();
 
 	init_TIM2_Configuration();
+
+	while(1){
+		delayus(100);
+		GPIOC->BSRRH = GPIO_Pin_6;
+		delayus(250);
+		GPIOC->BSRRL = GPIO_Pin_6;
+	}
 
 	uart_Configuration(UART_POLLING);
 

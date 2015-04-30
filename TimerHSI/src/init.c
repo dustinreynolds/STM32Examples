@@ -56,21 +56,6 @@ void init_GPIO_Configuration(void)
 }
 
 void init_HSI(void){
-
-//	RCC_DeInit();
-//
-//	RCC_HSICmd(ENABLE);
-//
-//	/* Wait till HSI is ready */
-//	while (RCC_GetFlagStatus(RCC_FLAG_HSIRDY) == RESET);
-//
-//	RCC_HCLKConfig(RCC_SYSCLK_Div1);
-//	RCC_PCLK1Config(RCC_HCLK_Div1);
-//	RCC_PCLK2Config(RCC_HCLK_Div1);
-//	RCC_SYSCLKConfig(RCC_SYSCLKSource_HSI);
-//
-//	while (RCC_GetFlagStatus(RCC_FLAG_HSIRDY) == RESET);
-
 	//http://blog.tkjelectronics.dk/2010/02/stm32-internal-8mhz-clock-setup-routine/
 	FLASH_SetLatency(FLASH_Latency_1);
 
@@ -85,23 +70,34 @@ void init_HSI(void){
 	RCC_PCLK2Config(RCC_HCLK_Div1);
 }
 
+
+
 void init_TIM2_Configuration(void){
 	TIM_TimeBaseInitTypeDef timerInitStructure;
+	NVIC_InitTypeDef nvicStructure;
 
 	//Period between interrupts is (Period-1)/(32000000/(Prescaler-1))
 	timerInitStructure.TIM_Prescaler = 31;
 	timerInitStructure.TIM_CounterMode = TIM_CounterMode_Up;
-	timerInitStructure.TIM_Period = 9;  //results in 10us on, 10us off
+	timerInitStructure.TIM_Period = 100; //results in 10us on, 10us off
 	timerInitStructure.TIM_ClockDivision = TIM_CKD_DIV1;
 	TIM_TimeBaseInit(TIM2, &timerInitStructure);
 	TIM_Cmd(TIM2, ENABLE);
 	TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE);
 
-	NVIC_InitTypeDef nvicStructure;
 	nvicStructure.NVIC_IRQChannel = TIM2_IRQn;
 	nvicStructure.NVIC_IRQChannelPreemptionPriority = 0;
 	nvicStructure.NVIC_IRQChannelSubPriority = 1;
 	nvicStructure.NVIC_IRQChannelCmd = ENABLE;
 	NVIC_Init(&nvicStructure);
 
+}
+
+void init_TIM2_Change_Period(uint32_t period){
+	//By disabling events, we can modify the Period register safely.
+	//Once updated, re-enabling UEV events clears the existing counters,
+	//giving us a clean slate to start from.
+	TIM2->CR1 |= TIM_CR1_UDIS; //Disable UEV events
+	TIM2->ARR = period;
+	TIM2->CR1 &= ~TIM_CR1_UDIS; //Enable UEV events
 }

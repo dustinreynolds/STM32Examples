@@ -19,8 +19,6 @@ void init_RCC_Configuration(void)
 
 	/* Enable APB1 clocks */
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2,ENABLE);
-
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOC, ENABLE);
 }
 
 void init_GPIO_Configuration(void)
@@ -38,32 +36,19 @@ void init_GPIO_Configuration(void)
 	/* Connect USART pins to AF */
 	GPIO_PinAFConfig(GPIOA, GPIO_PinSource2, GPIO_AF_USART2);
 	GPIO_PinAFConfig(GPIOA, GPIO_PinSource3, GPIO_AF_USART2);
-
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_6; // PF.4
-	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
-	GPIO_InitStructure.GPIO_OType = GPIO_OType_OD;  //open drain, 4.7k used as pull up
-	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_40MHz;
-	GPIO_Init(GPIOC, &GPIO_InitStructure);
 }
 
-void init_TIM2_Configuration(void){
-	TIM_TimeBaseInitTypeDef timerInitStructure;
+void init_HSI(void){
+	//http://blog.tkjelectronics.dk/2010/02/stm32-internal-8mhz-clock-setup-routine/
+	FLASH_SetLatency(FLASH_Latency_1);
 
-	//Period between interrupts is (Period-1)/(16000000/(Prescaler-1))
-	timerInitStructure.TIM_Prescaler = 16-1;
-	timerInitStructure.TIM_CounterMode = TIM_CounterMode_Up;
-	timerInitStructure.TIM_Period = 10-1;
-	timerInitStructure.TIM_ClockDivision = TIM_CKD_DIV1;
-	TIM_TimeBaseInit(TIM2, &timerInitStructure);
-	TIM_Cmd(TIM2, ENABLE);
-	TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE);
+	RCC_PLLConfig(RCC_PLLSource_HSI, RCC_PLLMul_6, RCC_PLLDiv_3);//32 MHz
+	RCC_PLLCmd(ENABLE);
 
-	NVIC_InitTypeDef nvicStructure;
-	nvicStructure.NVIC_IRQChannel = TIM2_IRQn;
-	nvicStructure.NVIC_IRQChannelPreemptionPriority = 0;
-	nvicStructure.NVIC_IRQChannelSubPriority = 1;
-	nvicStructure.NVIC_IRQChannelCmd = ENABLE;
-	NVIC_Init(&nvicStructure);
+	while(RCC_GetFlagStatus(RCC_FLAG_PLLRDY) == RESET) {}
+	RCC_SYSCLKConfig(RCC_SYSCLKSource_PLLCLK);
+
+	RCC_HCLKConfig(RCC_SYSCLK_Div1);
+	RCC_PCLK1Config(RCC_HCLK_Div1);
+	RCC_PCLK2Config(RCC_HCLK_Div1);
 }
-

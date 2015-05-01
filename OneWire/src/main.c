@@ -11,7 +11,8 @@
 int main(void)
 {
 	uint16_t i = 0;
-	//init_HSI();
+
+	init_HSI();
 
 	init_RCC_Configuration();
 
@@ -29,15 +30,14 @@ int main(void)
 
 	while(1){
 		uint8_t response;
-		uint8_t buffer[2];
+		uint8_t buffer[50];
 		//response = onewire_OW3_sendReset();
-		buffer[0] = onewire_OW3_sendResetBasic();
-		buffer[1] = 0;
-		uart_OutString("Received a ");
+		response = onewire_OW3_sendResetBasic();
 
-		USART_SendData(USART2, buffer[0]);;
+		sprintf(buffer,"%d Received a %d\r\n", i++, response);
 
-		uart_OutString(" from the onewire bus!\r\n");
+		uart_OutString(buffer);
+
 		delayms(1000);
 	}
 }

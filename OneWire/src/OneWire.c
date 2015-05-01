@@ -16,7 +16,9 @@
  * The below code generated some unexpected timing, so I'm working in timer to see how I can improve it.  Currently I'm using
  * the default crystal, which is the MSI at 2.097 MHz. HSI clock of 16 MHz is available and may be the best since  16,000,000/1,000,000 = 16 periods (1000000 is 1/1u)
  *
- * Currently the basic reset seems to mostly work, but it has inconsistent timings for the 240us phase.
+ * Currently the basic reset seems to mostly work, but it has inconsistent timings for the 240us phase. Fixed
+ *
+ * Now it seems that I loose debugging control with the current timer setup. Problem is more pronounced with longer delays. __WFI was to blame.
  *
  */
 #include "stm32l1xx.h"
@@ -30,7 +32,6 @@ typedef enum {
 	onewire_single,
 	onewire_done,
 } onewire_state_t;
-
 
 typedef struct {
 	onewire_state_t state;
@@ -72,16 +73,16 @@ void delayms(uint32_t msec){
 void delayus(uint16_t usec){
 	TIM2_flag = 0;
 
+	TIM2->CR1 |= TIM_CR1_CEN;  //Enable TIM2
 	init_TIM2_Change_Period(usec);
 	while(TIM2_flag == 0){
-		__WFI();
+		//__WFI();  //can cause debugger to think it has disconnected, explore http://nuttx.org/doku.php?id=wiki:howtos:jtag-debugging
 	};
+	TIM2->CR1 &= (uint16_t)(~((uint16_t)TIM_CR1_CEN)); //DISABLE TIM2
 }
 
 void onewire_OW3Init(void){
 	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOC, ENABLE);
-
-
 
 	/*-------------------------- GPIO Configuration ----------------------------*/
 	gpioOW3.GPIO_Pin = GPIO_Pin_6;

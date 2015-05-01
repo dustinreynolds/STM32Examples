@@ -51,4 +51,9 @@ void init_HSI(void){
 	RCC_HCLKConfig(RCC_SYSCLK_Div1);
 	RCC_PCLK1Config(RCC_HCLK_Div1);
 	RCC_PCLK2Config(RCC_HCLK_Div1);
+
+	//Enable debugging during sleep modes
+	DBGMCU_Config(DBGMCU_CR_DBG_SLEEP, ENABLE);
+	DBGMCU_Config(DBGMCU_CR_DBG_STOP, ENABLE);
+	DBGMCU_Config(DBGMCU_CR_DBG_STANDBY, ENABLE);
 }

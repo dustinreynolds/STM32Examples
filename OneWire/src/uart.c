@@ -69,7 +69,9 @@ void uart_Configuration(uart_init_mode_t mode)
 
 	USART_Cmd(USART2, ENABLE);
 
-	USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
+	if (mode == UART_INTERRUPT_RX){
+		USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
+	}
 }
 
 

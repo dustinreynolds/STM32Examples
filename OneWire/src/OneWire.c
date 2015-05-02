@@ -60,6 +60,7 @@ void __inline__ init_TIM2_Change_Period(uint16_t period){
 	//giving us a clean slate to start from.
 	TIM2->CNT = 0;
 	TIM2->CR1 |= TIM_CR1_UDIS; //Disable UEV events
+	TIM2_flag = 0;
 	TIM2->ARR = period;
 	TIM2->CR1 &= ~TIM_CR1_UDIS; //Enable UEV events
 }
@@ -71,14 +72,33 @@ void delayms(uint32_t msec){
 }
 
 void delayus(uint16_t usec){
-	TIM2_flag = 0;
-
-	TIM2->CR1 |= TIM_CR1_CEN;  //Enable TIM2
+	//TIM2->CR1 |= TIM_CR1_CEN;  //Enable TIM2
+	if (usec <= 2){
+		return;
+	}else if (usec < 10){
+		uint16_t counter = usec * 2 - 1;
+		while(counter-- > 0)
+			asm("nop");
+		return;
+	}
 	init_TIM2_Change_Period(usec);
 	while(TIM2_flag == 0){
 		//__WFI();  //can cause debugger to think it has disconnected, explore http://nuttx.org/doku.php?id=wiki:howtos:jtag-debugging
 	};
-	TIM2->CR1 &= (uint16_t)(~((uint16_t)TIM_CR1_CEN)); //DISABLE TIM2
+	//TIM2->CR1 &= (uint16_t)(~((uint16_t)TIM_CR1_CEN)); //DISABLE TIM2
+}
+
+void startDelayus(uint16_t usec){
+	init_TIM2_Change_Period(usec);
+}
+
+void waitSpecificCount(uint16_t usec){
+	while(TIM_GetCounter(TIM2) < usec){};
+}
+void waitStartedDelay(void){
+	while(TIM2_flag == 0){
+		//__WFI();  //can cause debugger to think it has disconnected, explore http://nuttx.org/doku.php?id=wiki:howtos:jtag-debugging
+	};
 }
 
 void onewire_OW3Init(void){
@@ -122,7 +142,7 @@ void onewire_TIM2_Configuration(void){
 
 
 
-uint8_t onewire_OW3_sendResetBasic(void){
+uint8_t __inline__ onewire_OW3_sendResetBasic(void){
 	uint8_t presence;
 
 	//480us drive low
@@ -150,59 +170,69 @@ uint8_t onewire_OW3_sendResetBasic(void){
 	return presence;
 }
 
-uint8_t onewire_OW3_sendReset(void){
-	uint8_t presence;
-
-	//simple pattern
-	onewire_OW3Write(onewire_low);
-	onewire_OW3Write(onewire_high);
-	onewire_OW3Write(onewire_low);
-	onewire_OW3Write(onewire_high);
-	onewire_OW3Write(onewire_low);
-	onewire_OW3Write(onewire_high);
-	onewire_OW3Write(onewire_low);
+uint8_t __inline__ onewire_OW3_WriteOneBasic(void){
+	startDelayus(52+10); //56, but with function overhead and the delay of setting up startDelayus, it can effect timing.
 	onewire_OW3Write(onewire_high);
 
-	//480us drive low
-	timerOW3.TIM_Period = 480-1;
-
-	onewire_OW3.state = onewire_reset;
-	onewire_OW3.next_delay = 120;
-	onewire_OW3.next_level = onewire_high;
-
+	waitSpecificCount(7);
+	//delayus(6);
 	onewire_OW3Write(onewire_low);
-	TIM_TimeBaseInit(TIM2, &timerOW3);
-	TIM_Cmd(TIM2, ENABLE);
-	TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE);
+	waitStartedDelay();
+}
 
-	while(onewire_OW3.state != onewire_done){}; //interrupt will take care of releasing bus and setting up timer for next action
+uint8_t __inline__ onewire_OW3_WriteZeroBasic(void){
+	startDelayus(52+10); //56
+	onewire_OW3Write(onewire_high);
+	waitStartedDelay();
+}
 
-	//now perform a read in middle of slave response time
+uint8_t __inline__ onewire_OW3_ReadBasic(void){
+	uint8_t bitRead;
+	startDelayus(52+10); //56
+	onewire_OW3Write(onewire_high);
+
+	waitSpecificCount(7);
+	onewire_OW3Write(onewire_low);
+
+
 	gpioOW3.GPIO_Mode = GPIO_Mode_IN;
 	GPIO_Init(GPIOC, &gpioOW3);
+
+	waitSpecificCount(20);
 	//do read
-	presence = GPIO_ReadInputDataBit(GPIOC, GPIO_Pin_13);
+	bitRead = GPIO_ReadInputDataBit(GPIOC, GPIO_Pin_6);
 	gpioOW3.GPIO_Mode = GPIO_Mode_OUT;
 	GPIO_Init(GPIOC, &gpioOW3);
 
-	//setup timer for remaining cycle
-	timerOW3.TIM_Period = 120-1;
-	onewire_OW3.next_delay = 0; //will transistion to done state
-	onewire_OW3.state = onewire_single;
-
-	TIM_TimeBaseInit(TIM2, &timerOW3);
-	TIM_Cmd(TIM2, ENABLE);
-	TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE);
-
-
-	while(onewire_OW3.state != onewire_done){}; //interrupt will take care of finishing
-
-	//simple pattern
-	onewire_OW3Write(onewire_low);
-	onewire_OW3Write(onewire_high);
-	onewire_OW3Write(onewire_low);
-	onewire_OW3Write(onewire_high);
-	return presence;
+	waitStartedDelay();
+	return bitRead;
 }
 
+void __inline__ onewire_OW3_sendBit(uint8_t bit){
+	if (bit)
+		onewire_OW3_WriteOneBasic();
+	else
+		onewire_OW3_WriteZeroBasic();
+}
+
+uint8_t onewire_OW3_sendByte(uint8_t byte){
+	uint8_t i = 0;
+	while (i++ < 8){
+		onewire_OW3_sendBit(byte & 0x01);
+		byte = byte >> 1;
+	}
+}
+
+uint8_t onewire_OW3_readByte(void){
+	uint8_t i = 0, byte = 0;
+	while(i < 8){
+		byte |= (onewire_OW3_ReadBasic() << (7-i++));
+	}
+	return byte;
+}
+
+//implementing a one wire algorithm for searching the binary tree
+uint8_t onewire_OW3_search(uint8_t * ROM){
+
+}
 

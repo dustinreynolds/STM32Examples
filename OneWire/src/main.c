@@ -38,6 +38,13 @@ int main(void)
 
 		uart_OutString(buffer);
 
-		delayms(1000);
+		delayms(100);
+
+		//onewire_OW3_ReadBasic();
+		//onewire_OW3_sendByte(0xFF);
+		response = onewire_OW3_readByte();
+		sprintf(buffer,"%d readbyte = %d\r\n", i++, response);
+		uart_OutString(buffer);
+		//delayms(100);
 	}
 }

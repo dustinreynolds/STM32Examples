@@ -140,8 +140,6 @@ void onewire_TIM2_Configuration(void){
 }
 
 
-
-
 uint8_t __inline__ onewire_OW3_sendResetBasic(void){
 	uint8_t presence;
 
@@ -164,7 +162,7 @@ uint8_t __inline__ onewire_OW3_sendResetBasic(void){
 	GPIO_Init(GPIOC, &gpioOW3);
 
 	//wait 120us more
-	delayus(180 - 61);
+	delayus(180 - 61 + 240);  //extra 240 for total of 960 us
 
 	//Done
 	return presence;
@@ -181,24 +179,25 @@ uint8_t __inline__ onewire_OW3_WriteOneBasic(void){
 }
 
 uint8_t __inline__ onewire_OW3_WriteZeroBasic(void){
-	startDelayus(52+10); //56
+	startDelayus(52); //56
 	onewire_OW3Write(onewire_high);
 	waitStartedDelay();
+	onewire_OW3Write(onewire_low);
+	delayus(10);
+
 }
 
 uint8_t __inline__ onewire_OW3_ReadBasic(void){
 	uint8_t bitRead;
 	startDelayus(52+10); //56
 	onewire_OW3Write(onewire_high);
-
-	waitSpecificCount(7);
+	delayus(1);//normally this would be bad, but since it just returns for <2, we are good.
 	onewire_OW3Write(onewire_low);
-
 
 	gpioOW3.GPIO_Mode = GPIO_Mode_IN;
 	GPIO_Init(GPIOC, &gpioOW3);
 
-	waitSpecificCount(20);
+	waitSpecificCount(12);
 	//do read
 	bitRead = GPIO_ReadInputDataBit(GPIOC, GPIO_Pin_6);
 	gpioOW3.GPIO_Mode = GPIO_Mode_OUT;
@@ -226,7 +225,7 @@ uint8_t onewire_OW3_sendByte(uint8_t byte){
 uint8_t onewire_OW3_readByte(void){
 	uint8_t i = 0, byte = 0;
 	while(i < 8){
-		byte |= (onewire_OW3_ReadBasic() << (7-i++));
+		byte |= (onewire_OW3_ReadBasic() << (i++));
 	}
 	return byte;
 }

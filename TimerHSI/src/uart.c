@@ -13,7 +13,7 @@ void USART2_IRQHandler(void)
 		char t = USART_ReceiveData(USART2);
 
 		//do something.
-		USART_SendData(USART2, (t+10));
+		USART_SendData(USART2, t);
 	}
 }
 

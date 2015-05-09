@@ -59,9 +59,9 @@ void init_TIM2_Configuration(void){
 	TIM_TimeBaseInitTypeDef timerInitStructure;
 
 	//Period between interrupts is (Period-1)/(16000000/(Prescaler-1))
-	timerInitStructure.TIM_Prescaler = 16-1;
+	timerInitStructure.TIM_Prescaler = 0;
 	timerInitStructure.TIM_CounterMode = TIM_CounterMode_Up;
-	timerInitStructure.TIM_Period = 10-1;
+	timerInitStructure.TIM_Period = 1;
 	timerInitStructure.TIM_ClockDivision = TIM_CKD_DIV1;
 	TIM_TimeBaseInit(TIM2, &timerInitStructure);
 	TIM_Cmd(TIM2, ENABLE);

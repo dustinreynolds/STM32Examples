@@ -13,7 +13,7 @@ void TIM2_IRQHandler()
     {
         TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
         GPIOC->ODR ^= GPIO_Pin_6;
-        GPIOA->ODR ^= GPIO_Pin_5;
+        //GPIOA->ODR ^= GPIO_Pin_5;
     }
 }
 

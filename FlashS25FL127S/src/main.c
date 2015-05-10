@@ -5,10 +5,11 @@
  *      Author: Dustin
  */
 #include "stm32l1xx.h"
-#include "string.h"
+#include "stdio.h"
 #include "init.h"
 #include "uart.h"
 #include "spi.h"
+#include "flash.h"
 
 
 int main(void)
@@ -23,26 +24,23 @@ int main(void)
 
 	spi_SPI2_Configuration();
 
+	flash_enable_write(0);
+
 	uart_Configuration(UART_POLLING);
 
 	uart_OutString("SPI Flash Example Utilizing HSI Clock\r\n");
 
 	while(1){
-		uint8_t response[10];
-		uint8_t buffer[100];
+		uint8_t result;
+		result = flash_stress_test();
 
-		GPIOC->BSRRH |= GPIO_Pin_8;
-		response[0] = spi_send(0x90);
-		response[1] = spi_send(0x00);
-		response[2] = spi_send(0x00);
-		response[3] = spi_send(0x00);
-		response[4] = spi_send(0x00);  //responds MISO 0x01
-		response[5] = spi_send(0x00);  //responds MISO 0x17
-		GPIOC->BSRRL |= GPIO_Pin_8;
+		if (result == 0){
+			uart_OutString("SPI Stress Test Failed\r\n");
+		}else{
+			uart_OutString("SPI Stress Test Passed\r\n");
+		}
 
-		sprintf(buffer,"Flash: %d %d %d %d %d %d\r\n",response[0], response[1], response[2], response[3], response[4], response[5]);
-		uart_OutString(buffer);
-
-		delayms(100);
+		delayms(1000);
 	}
+
 }

@@ -14,6 +14,7 @@
 
 int main(void)
 {
+	uint8_t result;
 	init_HSI();
 
 	init_RCC_Configuration();
@@ -30,9 +31,17 @@ int main(void)
 
 	uart_OutString("SPI Flash Example Utilizing HSI Clock\r\n");
 
-	while(1){
-		uint8_t result;
+	if (flash_present()){
 		result = flash_stress_test();
+
+		if (result == 0){
+			uart_OutString("SPI Stress Test Failed\r\n");
+		}else{
+			uart_OutString("SPI Stress Test Passed\r\n");
+		}
+	}
+
+	while(1){
 
 		if (result == 0){
 			uart_OutString("SPI Stress Test Failed\r\n");

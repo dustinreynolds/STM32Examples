@@ -7,10 +7,11 @@
 
 #include "stm32l1xx.h"
 #include "stdio.h"
+#include "string.h"
 #include "spi.h"
 #include "uart.h"
 
-//#define DEBUG_FLASH
+#define DEBUG_FLASH
 
 #define FLASH_SR1_STATUS_REGISTER_WRITE_DISABLE 0x80
 #define FLASH_SR1_PROGRAMMING_ERROR_OCCURRED 0x40
@@ -39,24 +40,21 @@ enum {
 	FLASH_READ_MANUFACTURE_SIGNATURE = 0x90,
 };
 
-uint8_t flash_present(void){
-	uint8_t response[8];
-	uint8_t success_flag = 0x00;
-	GPIOC->BSRRH |= GPIO_Pin_8;
-	response[0] = spi_send(FLASH_READ_MANUFACTURE_SIGNATURE);
-	response[1] = spi_send(0x00);
-	response[2] = spi_send(0x00);
-	response[3] = spi_send(0x00);
-	response[4] = spi_send(0x00);  //responds MISO 0x01
-	response[5] = spi_send(0x00);  //responds MISO 0x17
-	response[6] = spi_send(0x00);  //responds MISO 0x01
-	response[7] = spi_send(0x00);  //responds MISO 0x17
-	GPIOC->BSRRL |= GPIO_Pin_8;
+extern uint8_t SPI2ReceivedValue[SPI2_BUFFER_SIZE];
+extern uint8_t SPI2TransmitValue[SPI2_BUFFER_SIZE];
 
-	if (response[4] == 0x01 && response[6] == 0x01){
+uint8_t flash_present(void){
+	uint8_t success_flag = 0x00;
+
+	memset(&SPI2TransmitValue, 0, 8);
+	SPI2TransmitValue[0] = FLASH_READ_MANUFACTURE_SIGNATURE;
+
+	spi_send_buffer(8);
+
+	if (SPI2ReceivedValue[4] == 0x01 && SPI2ReceivedValue[6] == 0x01){
 		success_flag |= 0x01;
 	}
-	if (response[5] == 0x17 && response[7] == 0x17){
+	if (SPI2ReceivedValue[5] == 0x17 && SPI2ReceivedValue[7] == 0x17){
 		success_flag |= 0x02;
 	}
 
@@ -68,15 +66,15 @@ uint8_t flash_present(void){
 uint16_t flash_view_status(void){
 	uint8_t flash_reg[2];
 
+	SPI2TransmitValue[0] = FLASH_READ_STATUS_REGISTER_1;
+	SPI2TransmitValue[1] = 0x00;
+	spi_send_buffer(2);
+	flash_reg[0] = SPI2ReceivedValue[1];
 
-	GPIOC->BSRRH |= GPIO_Pin_8;
-	flash_reg[0] = spi_send(FLASH_READ_STATUS_REGISTER_1);
-	flash_reg[0] = spi_send(0x00);
-	GPIOC->BSRRL |= GPIO_Pin_8;
-	GPIOC->BSRRH |= GPIO_Pin_8;
-	flash_reg[1] = spi_send(FLASH_READ_STATUS_REGISTER_2);
-	flash_reg[1] = spi_send(0x00);
-	GPIOC->BSRRL |= GPIO_Pin_8;
+	SPI2TransmitValue[0] = FLASH_READ_STATUS_REGISTER_2;
+	SPI2TransmitValue[1] = 0x00;
+	spi_send_buffer(2);
+	flash_reg[1] = SPI2ReceivedValue[1];
 
 #ifdef DEBUG_FLASH
 	{
@@ -99,6 +97,21 @@ void flash_enable_write(uint8_t enable){
 }
 
 void flash_read(uint8_t * data, uint32_t address, uint32_t size){
+
+	SPI2TransmitValue[0] = FLASH_READ_DATA;
+	SPI2TransmitValue[1] = (address >> 8 & 0xFF);
+	SPI2TransmitValue[2] = (address & 0xFF);
+	SPI2TransmitValue[3] = 0x00;
+	memcpy(&SPI2TransmitValue[4], data, sizeof(uint8_t) * size);
+
+	spi_send_buffer(size + 4);
+
+	memcpy(data, &SPI2ReceivedValue[4], sizeof(uint8_t) * 256);
+
+	memset(&SPI2ReceivedValue, 0, sizeof(SPI2ReceivedValue));
+}
+
+void flash_read_nonDMA(uint8_t * data, uint32_t address, uint32_t size){
 	uint32_t i;
 	GPIOC->BSRRH |= GPIO_Pin_8;
 	spi_send(FLASH_READ_DATA);
@@ -112,40 +125,32 @@ void flash_read(uint8_t * data, uint32_t address, uint32_t size){
 }
 
 void flash_write_page(uint8_t * data, uint16_t address){
-	uint32_t i;
 	uint8_t flash_sr1;
 	uint16_t timeout = 0;
 	flash_enable_write(1);
 
-	//uart_OutString("Write_Page Enable Write: ");
-	//flash_view_status();
+	SPI2TransmitValue[0] = FLASH_PAGE_PROGRAM;
+	SPI2TransmitValue[1] = (address >> 8 & 0xFF);
+	SPI2TransmitValue[2] = (address & 0xFF);
+	SPI2TransmitValue[3] = 0x00;
+	memcpy(&SPI2TransmitValue[4], data, sizeof(uint8_t) * 256);
 
-	GPIOC->BSRRH |= GPIO_Pin_8;
-	spi_send(FLASH_PAGE_PROGRAM);
-	spi_send((address >> 8 & 0xFF));
-	spi_send((address & 0xFF));
-	spi_send(0x00); //fix lsb to always be page boundary
-	for(i = 0; i < 256; i++){
-		spi_send(data[i]);
-	}
-	GPIOC->BSRRL |= GPIO_Pin_8;
+	spi_send_buffer(SPI2_BUFFER_SIZE);
 
 	flash_enable_write(0);
 
-	//uart_OutString("Write_Page Disable Write: ");
-	//flash_view_status();
-
 	//Wait for it to finish
-	while(timeout++ < 1000)
+	while(timeout < 100)
 	{
-		GPIOC->BSRRH |= GPIO_Pin_8;
-		spi_send(FLASH_READ_STATUS_REGISTER_1);
-		flash_sr1 = spi_send(0x00);
-		GPIOC->BSRRL |= GPIO_Pin_8;
+		SPI2TransmitValue[0] = FLASH_READ_STATUS_REGISTER_1;
+		SPI2TransmitValue[1] = 0x00;
+		spi_send_buffer(2);
+		flash_sr1 = SPI2ReceivedValue[1];
+
 		if ((flash_sr1 & FLASH_SR1_WRITE_IN_PROGRESS) == 0x00){
 			break;
 		}
-		delayus(100);
+		timeout++;
 	}
 }
 
@@ -153,29 +158,31 @@ uint8_t flash_erase_sector(uint32_t address){
 	uint8_t flash_sr1;
 	uint16_t timeout = 0;
 	flash_enable_write(1);
-	GPIOC->BSRRH |= GPIO_Pin_8;
-	spi_send(FLASH_4K_SECTOR_ERASE);
-	spi_send((address >> 8 & 0xFF));
-	spi_send((address & 0xFF));
-	spi_send(0x00);//fix lsb to always be page boundary
-	GPIOC->BSRRL |= GPIO_Pin_8;
+
+	SPI2TransmitValue[0] = FLASH_4K_SECTOR_ERASE;
+	SPI2TransmitValue[1] = (address >> 8 & 0xFF);
+	SPI2TransmitValue[2] = (address & 0xFF);
+	SPI2TransmitValue[3] = 0x00;
+	spi_send_buffer(4);
 
 	//Wait for it to finish
-	while(timeout++ < 1000)
+	while(1)
 	{
-		GPIOC->BSRRH |= GPIO_Pin_8;
-		spi_send(FLASH_READ_STATUS_REGISTER_1);
-		flash_sr1 = spi_send(0x00);
-		GPIOC->BSRRL |= GPIO_Pin_8;
+		SPI2TransmitValue[0] = FLASH_READ_STATUS_REGISTER_1;
+		SPI2TransmitValue[1] = 0x00;
+		spi_send_buffer(2);
+		flash_sr1 = SPI2ReceivedValue[1];
 		if ((flash_sr1 & FLASH_SR1_WRITE_IN_PROGRESS) == 0x00){
 			break;
 		}
-		delayus(100);
+		timeout++;
 	}
 	flash_enable_write(0);
 
-	if (timeout == 1000){
-		return 0;
+	{
+		char buffer[30];
+		sprintf(buffer,"ES: %d\r\n",timeout);
+		uart_OutString(buffer);
 	}
 	return 1;
 }
@@ -190,12 +197,12 @@ uint8_t flash_erase_all(void){
 	GPIOC->BSRRL |= GPIO_Pin_8;
 
 	//Wait for it to finish
-	while(timeout++ < 100000)
+	while(timeout < 5000000)
 	{
-		GPIOC->BSRRH |= GPIO_Pin_8;
-		spi_send(FLASH_READ_STATUS_REGISTER_1);
-		flash_sr1 = spi_send(0x00);
-		GPIOC->BSRRL |= GPIO_Pin_8;
+		SPI2TransmitValue[0] = FLASH_READ_STATUS_REGISTER_1;
+		SPI2TransmitValue[1] = 0x00;
+		spi_send_buffer(2);
+		flash_sr1 = SPI2ReceivedValue[1];
 		if ((flash_sr1 & FLASH_SR1_WRITE_IN_PROGRESS) == 0x00){
 			success_ctr++;
 		}else{
@@ -204,20 +211,19 @@ uint8_t flash_erase_all(void){
 
 		if (success_ctr > 10)
 			break;
-		delayms(1);
+		timeout++;
 	}
 	flash_enable_write(0);
 
-	if (timeout == 1000){
+	if(timeout > 5000000)
 		return 0;
-	}
 	return 1;
 }
 
 uint8_t flash_stress_test(void){
 	uint8_t timeout;
 	uint8_t data[256];
-	uint8_t buffer[100];
+	char buffer[100];
 	uint32_t page = 0;
 #ifdef DEBUG_FLASH
 	uart_OutString("SPI Flash Erase All: ");
@@ -271,12 +277,13 @@ uint8_t flash_stress_test(void){
 			for(i = 0; i < sizeof(data); i++){
 				data[i] = i;
 			}
-			flash_write_page(&data, page);
+			flash_write_page(&data[0], page);
 			memset(data, 0, sizeof(data));
 		}
 		{
 			uint16_t i;
-			flash_read(&data[0],page, 5);
+			flash_read(&data[0],page, 256); //160us for transferring 260 bytes
+			//flash_read_nonDMA(&data[0],page, 256); //900us for transferring 260 bytes
 			for (i = 0; i < 5; i++){
 				if (data[i] != i)
 				{

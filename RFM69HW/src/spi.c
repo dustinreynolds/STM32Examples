@@ -69,9 +69,7 @@ void spi_SPI2_Configuration(void){
 	DMA_InitStructure.DMA_M2M = DMA_M2M_Disable;
 	DMA_Init(DMA1_Channel5, &DMA_InitStructure);
 
-
 	SPI_Cmd(SPI2, ENABLE);
-
 }
 
 uint8_t __inline__ spi_send(uint8_t data){
@@ -80,6 +78,36 @@ uint8_t __inline__ spi_send(uint8_t data){
 	while(!(SPI2->SR & SPI_I2S_FLAG_RXNE));
 	while(SPI2->SR & SPI_I2S_FLAG_BSY);
 
+	return SPI2->DR;
+}
+
+uint8_t spi_write_register(uint8_t reg_cmd, uint8_t reg_op){
+	uint8_t dummy;
+	SPI2->DR = reg_cmd;
+	while(!(SPI2->SR & SPI_I2S_FLAG_TXE));
+	while(!(SPI2->SR & SPI_I2S_FLAG_RXNE));
+	while(SPI2->SR & SPI_I2S_FLAG_BSY);
+
+	dummy = SPI2->DR;
+	SPI2->DR = reg_op;
+	while(!(SPI2->SR & SPI_I2S_FLAG_TXE));
+	while(!(SPI2->SR & SPI_I2S_FLAG_RXNE));
+	while(SPI2->SR & SPI_I2S_FLAG_BSY);
+	return SPI2->DR;
+}
+
+uint8_t spi_read_register(uint8_t reg_cmd){
+	uint8_t dummy;
+	SPI2->DR = reg_cmd;
+	while(!(SPI2->SR & SPI_I2S_FLAG_TXE));
+	while(!(SPI2->SR & SPI_I2S_FLAG_RXNE));
+	while(SPI2->SR & SPI_I2S_FLAG_BSY);
+	dummy = SPI2->DR;
+
+	SPI2->DR = 0x00;
+	while(!(SPI2->SR & SPI_I2S_FLAG_TXE));
+	while(!(SPI2->SR & SPI_I2S_FLAG_RXNE));
+	while(SPI2->SR & SPI_I2S_FLAG_BSY);
 	return SPI2->DR;
 }
 

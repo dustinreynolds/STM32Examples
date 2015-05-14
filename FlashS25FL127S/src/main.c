@@ -14,7 +14,7 @@
 
 int main(void)
 {
-	uint8_t result;
+	uint8_t result = 0;
 	init_HSI();
 
 	init_RCC_Configuration();
@@ -24,6 +24,8 @@ int main(void)
 	init_TIM2_Configuration();
 
 	spi_SPI2_Configuration();
+
+	delayms(100);
 
 	flash_enable_write(0);
 
@@ -43,13 +45,13 @@ int main(void)
 
 	while(1){
 
-		if (result == 0){
-			uart_OutString("SPI Stress Test Failed\r\n");
+		if (flash_present() == 0){
+			uart_OutString("SPI Flash Failed\r\n");
 		}else{
-			uart_OutString("SPI Stress Test Passed\r\n");
+			uart_OutString("SPI Flash Passed\r\n");
 		}
 
-		delayms(1000);
+		delayms(100);
 	}
 
 }

@@ -106,4 +106,3 @@ uint8_t __inline__ spi_send_buffer(uint32_t size){
 	return 1;
 }
 
-

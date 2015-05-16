@@ -17,44 +17,61 @@ void USART2_IRQHandler(void)
 	}
 }
 
+void USART1_IRQHandler(void)
+{
+	if( USART_GetITStatus(USART1, USART_IT_RXNE)){
+		char t = USART_ReceiveData(USART1);
 
-void uart_NVIC_USART2_init(void)
+		//do something.
+		USART_SendData(USART1, (t+10));
+	}
+}
+
+void uart_NVIC_init(USART_TypeDef * USARTx)
 {
 	NVIC_InitTypeDef NVIC_InitStructure;
 
-	NVIC_InitStructure.NVIC_IRQChannel = USART2_IRQn;
+	if (USARTx == USART1){
+		NVIC_InitStructure.NVIC_IRQChannel = USART1_IRQn;
+	}else if (USARTx == USART2){
+		NVIC_InitStructure.NVIC_IRQChannel = USART2_IRQn;
+	}
 	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
 	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
 	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
 	NVIC_Init(&NVIC_InitStructure);
 }
 
-void uart_NVIC_USART2_deinit(void)
+void uart_NVIC_deinit(USART_TypeDef * USARTx)
 {
 	NVIC_InitTypeDef NVIC_InitStructure;
 
-	NVIC_InitStructure.NVIC_IRQChannel = USART2_IRQn;
+	if (USARTx == USART1){
+		NVIC_InitStructure.NVIC_IRQChannel = USART1_IRQn;
+	}else if (USARTx == USART2){
+		NVIC_InitStructure.NVIC_IRQChannel = USART2_IRQn;
+	}
 	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
 	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
 	NVIC_InitStructure.NVIC_IRQChannelCmd = DISABLE;
 	NVIC_Init(&NVIC_InitStructure);
 }
 
-void uart_switch_mode(uart_init_mode_t mode){
+void uart_switch_mode(USART_TypeDef * USARTx,uart_init_mode_t mode){
 	if (mode == UART_INTERRUPT_RX){
-		uart_NVIC_USART2_init();
+		uart_NVIC_init(USARTx);
 	}else{
-		uart_NVIC_USART2_deinit();
+		uart_NVIC_deinit(USARTx);
 	}
 }
 
-void uart_Configuration(uart_init_mode_t mode)
+void uart_Configuration(USART_TypeDef * USARTx, uart_init_mode_t mode)
 {
 	USART_InitTypeDef USART_InitStructure;
 	if (mode == UART_INTERRUPT_RX){
-		uart_NVIC_USART2_init();
+		uart_NVIC_init(USARTx);
 	}else{
-		uart_NVIC_USART2_deinit();
+		uart_NVIC_deinit(USARTx);
 	}
 
 	USART_StructInit(&USART_InitStructure);
@@ -65,21 +82,22 @@ void uart_Configuration(uart_init_mode_t mode)
 	USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
 	USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
 
-	USART_Init(USART2, &USART_InitStructure);
+	USART_Init(USARTx, &USART_InitStructure);
 
-	USART_Cmd(USART2, ENABLE);
+	USART_Cmd(USARTx, ENABLE);
 
-	USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
+	USART_ITConfig(USARTx, USART_IT_RXNE, ENABLE);
 }
 
 
-void uart_OutString(char *s)
+
+void uart_OutString(USART_TypeDef * USARTx, char *s)
 {
 	while(*s)
 	{
-		while(USART_GetFlagStatus(USART2, USART_FLAG_TXE) == RESET); // Wait for Empty
+		while(USART_GetFlagStatus(USARTx, USART_FLAG_TXE) == RESET); // Wait for Empty
 
-		USART_SendData(USART2, *s++); // Send Char
+		USART_SendData(USARTx, *s++); // Send Char
 	}
 }
 

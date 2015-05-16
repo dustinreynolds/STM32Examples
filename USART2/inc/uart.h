@@ -13,8 +13,8 @@ typedef enum {
 	UART_POLLING
 } uart_init_mode_t;
 
-void uart_switch_mode(uart_init_mode_t mode);
-void uart_Configuration(uart_init_mode_t mode);
-void uart_OutString(char *s);
+void uart_switch_mode(USART_TypeDef * USARTx,uart_init_mode_t mode);
+void uart_Configuration(USART_TypeDef * USARTx, uart_init_mode_t mode);
+void uart_OutString(USART_TypeDef * USARTx, char *s);
 
 #endif /* UART_H_ */

@@ -21,7 +21,7 @@ typedef enum {
 	onewire_search_rom = 0xF0,
 };
 
-typedef enum {
+enum {
 	DS18B20_convert = 0x44,
 	DS18B20_write_scratchpad = 0x4E,
 	DS18B20_read_scratchpad = 0xBE,
@@ -35,17 +35,23 @@ typedef enum {
 	onewire_low = 0x01,   //Master pulls down bus
 } onewire_level_t;
 
-void delayus(uint16_t usec);
-void delayms(uint32_t msec);
-void onewire_OW3Init(void);
-void onewire_TIM2_Configuration(void);
+typedef enum {
+	onewire_OW3 = 0x00, //PC6
+	onewire_OW4 = 0x01, //PC7
+} onewire_port_t;
+
+void onewire_Init(onewire_port_t OWx);
+
+uint8_t onewire_sendResetBasic(onewire_port_t OWx);
 void onewire_read_latest_ROM(uint8_t * rom);
-void onewire_read_temp(uint8_t rom[8]);
+void onewire_read_temp(onewire_port_t OWx, uint8_t rom[8]);
+void onewire_trigger_temp(onewire_port_t OWx);
+void onewire_read_stored_temp(onewire_port_t OWx, uint8_t rom[8]);
 
 // method declarations for Maxim 1-wire
-int  OWFirst();
-int  OWNext();
-int  OWVerify();
+int  OWFirst(onewire_port_t OWx);
+int  OWNext(onewire_port_t OWx);
+int  OWVerify(onewire_port_t OWx);
 void OWTargetSetup(unsigned char family_code);
 void OWFamilySkipSetup();
 

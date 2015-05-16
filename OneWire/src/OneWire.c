@@ -23,6 +23,7 @@
  */
 #include "stm32l1xx.h"
 #include "onewire.h"
+#include "init.h"
 
 typedef enum {
 	onewire_reset = 0x00,
@@ -41,11 +42,11 @@ typedef struct {
 
 // method declarations for Maxim 1-wire
 
-int  OWReset();
-void OWWriteByte(unsigned char byte_value);
-void OWWriteBit(unsigned char bit_value);
-unsigned char OWReadBit();
-int  OWSearch();
+int  OWReset(onewire_port_t OWx);
+void OWWriteByte(onewire_port_t OWx,unsigned char byte_value);
+void OWWriteBit(onewire_port_t OWx,unsigned char bit_value);
+unsigned char OWReadBit(onewire_port_t OWx);
+int  OWSearch(onewire_port_t OWx);
 unsigned char docrc8(unsigned char value);
 
 // global search state
@@ -56,126 +57,83 @@ int LastDeviceFlag;
 unsigned char crc8;
 
 GPIO_InitTypeDef gpioOW3;
-NVIC_InitTypeDef nvicOW3;
-TIM_TimeBaseInitTypeDef timerOW3;
-onewire_OWn_t onewire_OW3;
 
-volatile static TIM2_flag = 0;
-void TIM2_IRQHandler()
-{
-	if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET)
-	{
-		TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
-		TIM2_flag = 1;
-	}
-}
+//onewire_OWn_t onewire_OW3;
 
-void __inline__ init_TIM2_Change_Period(uint16_t period){
-	//By disabling events, we can modify the Period register safely.
-	//Once updated, re-enabling UEV events clears the existing counters,
-	//giving us a clean slate to start from.
-	TIM2->CNT = 0;
-	TIM2->CR1 |= TIM_CR1_UDIS; //Disable UEV events
-	TIM2_flag = 0;
-	TIM2->ARR = period;
-	TIM2->CR1 &= ~TIM_CR1_UDIS; //Enable UEV events
-}
+GPIO_InitTypeDef gpioOW4;
+NVIC_InitTypeDef nvicOW4;
 
-void delayms(uint32_t msec){
-	while (msec-- > 0){
-		delayus(1000);
-	}
-}
 
-void delayus(uint16_t usec){
-	//TIM2->CR1 |= TIM_CR1_CEN;  //Enable TIM2
-	if (usec <= 2){
-		return;
-	}else if (usec < 10){
-		uint16_t counter = usec * 2 - 1;
-		while(counter-- > 0)
-			asm("nop");
-		return;
-	}
-	init_TIM2_Change_Period(usec);
-	while(TIM2_flag == 0){
-		//__WFI();  //can cause debugger to think it has disconnected, explore http://nuttx.org/doku.php?id=wiki:howtos:jtag-debugging
-	};
-	//TIM2->CR1 &= (uint16_t)(~((uint16_t)TIM_CR1_CEN)); //DISABLE TIM2
-}
-
-void startDelayus(uint16_t usec){
-	init_TIM2_Change_Period(usec);
-}
-
-void waitSpecificCount(uint16_t usec){
-	while(TIM_GetCounter(TIM2) < usec){};
-}
-void waitStartedDelay(void){
-	while(TIM2_flag == 0){
-		//__WFI();  //can cause debugger to think it has disconnected, explore http://nuttx.org/doku.php?id=wiki:howtos:jtag-debugging
-	};
-}
-
-void onewire_OW3Init(void){
+void onewire_Init(onewire_port_t OWx){
 	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOC, ENABLE);
 
-	/*-------------------------- GPIO Configuration ----------------------------*/
-	gpioOW3.GPIO_Pin = GPIO_Pin_6;
-	gpioOW3.GPIO_Mode = GPIO_Mode_OUT;
-	gpioOW3.GPIO_OType = GPIO_OType_OD;  //open drain, 4.7k used as pull up
-	gpioOW3.GPIO_PuPd = GPIO_PuPd_NOPULL;
-	gpioOW3.GPIO_Speed = GPIO_Speed_40MHz;
-	GPIO_Init(GPIOC, &gpioOW3);
+	if (OWx == onewire_OW3){
+
+		/*-------------------------- GPIO Configuration ----------------------------*/
+		gpioOW3.GPIO_Pin = GPIO_Pin_6;
+		gpioOW3.GPIO_Mode = GPIO_Mode_OUT;
+		gpioOW3.GPIO_OType = GPIO_OType_OD;  //open drain, 4.7k used as pull up
+		gpioOW3.GPIO_PuPd = GPIO_PuPd_NOPULL;
+		gpioOW3.GPIO_Speed = GPIO_Speed_40MHz;
+		GPIO_Init(GPIOC, &gpioOW3);
+
+	}else if (OWx == onewire_OW4){
+		/*-------------------------- GPIO Configuration ----------------------------*/
+		gpioOW3.GPIO_Pin = GPIO_Pin_7;
+		gpioOW3.GPIO_Mode = GPIO_Mode_OUT;
+		gpioOW3.GPIO_OType = GPIO_OType_OD;  //open drain, 4.7k used as pull up
+		gpioOW3.GPIO_PuPd = GPIO_PuPd_NOPULL;
+		gpioOW3.GPIO_Speed = GPIO_Speed_40MHz;
+		GPIO_Init(GPIOC, &gpioOW3);
+	}
+
 }
-void onewire_OW3Write(onewire_level_t state){
-	if (state == onewire_high)
-		GPIOC->BSRRH = GPIO_Pin_6;
-	else
-		GPIOC->BSRRL = GPIO_Pin_6;
+void onewire_write(onewire_port_t OWx, onewire_level_t state){
+	if (OWx == onewire_OW3){
+		if (state == onewire_high)
+			GPIOC->BSRRH = GPIO_Pin_6;
+		else
+			GPIOC->BSRRL = GPIO_Pin_6;
+	}else if (OWx == onewire_OW4){
+		if (state == onewire_high)
+			GPIOC->BSRRH = GPIO_Pin_7;
+		else
+			GPIOC->BSRRL = GPIO_Pin_7;
+	}
 }
 
-
-void onewire_TIM2_Configuration(void){
-
-	//Period between interrupts is (Period-1)/(16000000/(Prescaler-1))
-	timerOW3.TIM_Prescaler = 31;
-	timerOW3.TIM_CounterMode = TIM_CounterMode_Up;
-	timerOW3.TIM_Period = 1000;
-	timerOW3.TIM_ClockDivision = TIM_CKD_DIV1;
-	TIM_TimeBaseInit(TIM2, &timerOW3);
-	TIM_Cmd(TIM2, ENABLE);
-	TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE);
-
-	nvicOW3.NVIC_IRQChannel = TIM2_IRQn;
-	nvicOW3.NVIC_IRQChannelPreemptionPriority = 0;
-	nvicOW3.NVIC_IRQChannelSubPriority = 1;
-	nvicOW3.NVIC_IRQChannelCmd = ENABLE;
-
-	NVIC_Init(&nvicOW3);
-}
-
-
-uint8_t onewire_OW3_sendResetBasic(void){
+uint8_t onewire_sendResetBasic(onewire_port_t OWx){
 	uint8_t presence;
 
 	//480us drive low
-	onewire_OW3Write(onewire_high);
+	onewire_write(OWx, onewire_high);
 	delayus(480);
 
 	//Release line
-	onewire_OW3Write(onewire_low);
+	onewire_write(OWx, onewire_low);
 	delayus(60);
 
 	//Do Read - 47 us to perform read and switch to output, 22.4us to just read
-	gpioOW3.GPIO_Mode = GPIO_Mode_IN;
-	GPIO_Init(GPIOC, &gpioOW3);
-	//do read
-	presence = GPIO_ReadInputDataBit(GPIOC, GPIO_Pin_6);
+	if (OWx == onewire_OW3){
+		gpioOW3.GPIO_Mode = GPIO_Mode_IN;
+		GPIO_Init(GPIOC, &gpioOW3);
+		//do read
+		presence = GPIO_ReadInputDataBit(GPIOC, GPIO_Pin_6);
 
-	//reset to output
-	gpioOW3.GPIO_Mode = GPIO_Mode_OUT;
-	GPIO_Init(GPIOC, &gpioOW3);
+		//reset to output
+		gpioOW3.GPIO_Mode = GPIO_Mode_OUT;
+		GPIO_Init(GPIOC, &gpioOW3);
+	}
+	else if (OWx == onewire_OW4){
+		gpioOW4.GPIO_Mode = GPIO_Mode_IN;
+		GPIO_Init(GPIOC, &gpioOW4);
+		//do read
+		presence = GPIO_ReadInputDataBit(GPIOC, GPIO_Pin_7);
+
+		//reset to output
+		gpioOW4.GPIO_Mode = GPIO_Mode_OUT;
+		GPIO_Init(GPIOC, &gpioOW4);
+	}
 
 	//wait 120us more
 	delayus(180 - 61 + 240);  //extra 240 for total of 960 us
@@ -184,64 +142,75 @@ uint8_t onewire_OW3_sendResetBasic(void){
 	return !presence;  //return 1 if device is detected
 }
 
-uint8_t __inline__ onewire_OW3_WriteOneBasic(void){
+void __inline__ onewire_WriteOneBasic(onewire_port_t OWx){
 	startDelayus(52+10); //56, but with function overhead and the delay of setting up startDelayus, it can effect timing.
-	onewire_OW3Write(onewire_high);
+	onewire_write(OWx, onewire_high);
 
 	waitSpecificCount(7);
 	//delayus(6);
-	onewire_OW3Write(onewire_low);
+	onewire_write(OWx, onewire_low);
 	waitStartedDelay();
 }
 
-uint8_t __inline__ onewire_OW3_WriteZeroBasic(void){
+void __inline__ onewire_WriteZeroBasic(onewire_port_t OWx){
 	startDelayus(52); //56
-	onewire_OW3Write(onewire_high);
+	onewire_write(OWx, onewire_high);
 	waitStartedDelay();
-	onewire_OW3Write(onewire_low);
+	onewire_write(OWx, onewire_low);
 	delayus(10);
 
 }
 
-uint8_t __inline__ onewire_OW3_ReadBasic(void){
+uint8_t __inline__ onewire_ReadBasic(onewire_port_t OWx){
 	uint8_t bitRead;
 	startDelayus(52+10); //56
-	onewire_OW3Write(onewire_high);
+	onewire_write(OWx, onewire_high);
 	delayus(1);//normally this would be bad, but since it just returns for <2, we are good.
-	onewire_OW3Write(onewire_low);
+	onewire_write(OWx, onewire_low);
 
-	gpioOW3.GPIO_Mode = GPIO_Mode_IN;
-	GPIO_Init(GPIOC, &gpioOW3);
+	if (OWx == onewire_OW3){
+		gpioOW3.GPIO_Mode = GPIO_Mode_IN;
+		GPIO_Init(GPIOC, &gpioOW3);
 
-	waitSpecificCount(12);
-	//do read
-	bitRead = GPIO_ReadInputDataBit(GPIOC, GPIO_Pin_6);
-	gpioOW3.GPIO_Mode = GPIO_Mode_OUT;
-	GPIO_Init(GPIOC, &gpioOW3);
+		waitSpecificCount(12);
+		//do read
+		bitRead = GPIO_ReadInputDataBit(GPIOC, GPIO_Pin_6);
+		gpioOW3.GPIO_Mode = GPIO_Mode_OUT;
+		GPIO_Init(GPIOC, &gpioOW3);
+	}else if (OWx == onewire_OW4){
+		gpioOW4.GPIO_Mode = GPIO_Mode_IN;
+		GPIO_Init(GPIOC, &gpioOW4);
+
+		waitSpecificCount(12);
+		//do read
+		bitRead = GPIO_ReadInputDataBit(GPIOC, GPIO_Pin_7);
+		gpioOW4.GPIO_Mode = GPIO_Mode_OUT;
+		GPIO_Init(GPIOC, &gpioOW4);
+	}
 
 	waitStartedDelay();
 	return bitRead;
 }
 
-void __inline__ onewire_OW3_sendBit(uint8_t bit){
+void __inline__ onewire_sendBit(onewire_port_t OWx, uint8_t bit){
 	if (bit)
-		onewire_OW3_WriteOneBasic();
+		onewire_WriteOneBasic(OWx);
 	else
-		onewire_OW3_WriteZeroBasic();
+		onewire_WriteZeroBasic(OWx);
 }
 
-uint8_t onewire_OW3_sendByte(uint8_t byte){
+void onewire_sendByte(onewire_port_t OWx, uint8_t byte){
 	uint8_t i = 0;
 	while (i++ < 8){
-		onewire_OW3_sendBit(byte & 0x01);
+		onewire_sendBit(OWx, byte & 0x01);
 		byte = byte >> 1;
 	}
 }
 
-uint8_t onewire_OW3_readByte(void){
+uint8_t onewire_readByte(onewire_port_t OWx){
 	uint8_t i = 0, byte = 0;
 	while(i < 8){
-		byte |= (onewire_OW3_ReadBasic() << (i++));
+		byte |= (onewire_ReadBasic(OWx) << (i++));
 	}
 	return byte;
 }
@@ -250,42 +219,42 @@ void onewire_read_latest_ROM(uint8_t * rom){
 	memcpy(rom, ROM_NO, sizeof(ROM_NO));
 }
 
-void onewire_read_temp(uint8_t rom[8]){
+void onewire_read_temp(onewire_port_t OWx, uint8_t rom[8]){
 	uint8_t presence, i, crc, is_done = 0;
 	uint8_t buffer[9], pbuf[40];
 	uint16_t temp;
-	presence = onewire_OW3_sendResetBasic();
+	presence = onewire_sendResetBasic(OWx);
 
 	if (!presence)
 		return;
-	onewire_OW3_sendByte(onewire_match_rom);
+	onewire_sendByte(OWx, onewire_match_rom);
 
 	for (i=0; i < 8; i++){
-		onewire_OW3_sendByte(rom[i]);
+		onewire_sendByte(OWx, rom[i]);
 	}
 
-	onewire_OW3_sendByte(DS18B20_convert);
+	onewire_sendByte(OWx, DS18B20_convert);
 	//poll device to see when it is done
 //	while(!is_done){
 //		is_done = onewire_OW3_ReadBasic();
 //		delayms(1);
 //	}
 	delayms(750);
-	presence = onewire_OW3_sendResetBasic();
+	presence = onewire_sendResetBasic(OWx);
 
-	onewire_OW3_sendByte(onewire_match_rom);
+	onewire_sendByte(OWx, onewire_match_rom);
 
 	for (i=0; i < 8; i++){
-		onewire_OW3_sendByte(rom[i]);
+		onewire_sendByte(OWx, rom[i]);
 	}
 
-	onewire_OW3_sendByte(DS18B20_read_scratchpad);
+	onewire_sendByte(OWx, DS18B20_read_scratchpad);
 	crc8 = 0;
 	for (i=0; i < 8; i++){
-		buffer[i] = onewire_OW3_readByte();
+		buffer[i] = onewire_readByte(OWx);
 		docrc8(buffer[i]);
 	}
-	crc = onewire_OW3_readByte();
+	crc = onewire_readByte(OWx);
 
 	if (crc8 == crc){
 		//good data
@@ -298,45 +267,45 @@ void onewire_read_temp(uint8_t rom[8]){
 	}
 }
 
-void onewire_trigger_temp(void){
+void onewire_trigger_temp(onewire_port_t OWx){
 	uint8_t presence;
 
-	presence = onewire_OW3_sendResetBasic();
+	presence = onewire_sendResetBasic(OWx);
 
 	if (!presence)
 		return;
-	onewire_OW3_sendByte(onewire_skip_rom);
+	onewire_sendByte(OWx, onewire_skip_rom);
 
-	onewire_OW3_sendByte(DS18B20_convert);
+	onewire_sendByte(OWx, DS18B20_convert);
 }
 
 //can only be used when powered directly
-void onewire_read_stored_temp(uint8_t rom[8]){
+void onewire_read_stored_temp(onewire_port_t OWx, uint8_t rom[8]){
 	uint8_t presence, i, crc, is_done = 0;
 	uint8_t buffer[9], pbuf[60];
 	uint16_t temp;
 
 	//check that it's done before resetting
 	while(!is_done){
-		is_done = onewire_OW3_ReadBasic();
+		is_done = onewire_ReadBasic(OWx);
 		delayms(1);
 	}
 
-	presence = onewire_OW3_sendResetBasic();
+	presence = onewire_sendResetBasic(OWx);
 
-	onewire_OW3_sendByte(onewire_match_rom);
+	onewire_sendByte(OWx, onewire_match_rom);
 
 	for (i=0; i < 8; i++){
-		onewire_OW3_sendByte(rom[i]);
+		onewire_sendByte(OWx, rom[i]);
 	}
 
-	onewire_OW3_sendByte(DS18B20_read_scratchpad);
+	onewire_sendByte(OWx, DS18B20_read_scratchpad);
 	crc8 = 0;
 	for (i=0; i < 8; i++){
-		buffer[i] = onewire_OW3_readByte();
+		buffer[i] = onewire_readByte(OWx);
 		docrc8(buffer[i]);
 	}
-	crc = onewire_OW3_readByte();
+	crc = onewire_readByte(OWx);
 
 	if (crc8 == crc){
 		//good data
@@ -359,14 +328,14 @@ void onewire_read_stored_temp(uint8_t rom[8]){
 // Return TRUE  : device found, ROM number in ROM_NO buffer
 //        FALSE : no device present
 //
-int OWFirst()
+int OWFirst(onewire_port_t OWx)
 {
 	// reset the search state
 	LastDiscrepancy = 0;
 	LastDeviceFlag = OW_FALSE;
 	LastFamilyDiscrepancy = 0;
 
-	return OWSearch();
+	return OWSearch(OWx);
 }
 
 //--------------------------------------------------------------------------
@@ -374,10 +343,10 @@ int OWFirst()
 // Return TRUE  : device found, ROM number in ROM_NO buffer
 //        FALSE : device not found, end of search
 //
-int OWNext()
+int OWNext(onewire_port_t OWx)
 {
 	// leave the search state alone
-	return OWSearch();
+	return OWSearch(OWx);
 }
 
 //--------------------------------------------------------------------------
@@ -386,7 +355,7 @@ int OWNext()
 // Return TRUE  : device found, ROM number in ROM_NO buffer
 //        FALSE : device not found, end of search
 //
-int OWSearch()
+int OWSearch(onewire_port_t OWx)
 {
 	int id_bit_number;
 	int last_zero, rom_byte_number, search_result;
@@ -405,7 +374,7 @@ int OWSearch()
 	if (!LastDeviceFlag)
 	{
 		// 1-Wire reset
-		if (!OWReset())
+		if (!OWReset(OWx))
 		{
 			// reset the search
 			LastDiscrepancy = 0;
@@ -415,14 +384,14 @@ int OWSearch()
 		}
 
 		// issue the search command
-		OWWriteByte(0xF0);
+		OWWriteByte(OWx, 0xF0);
 
 		// loop to do the search
 		do
 		{
 			// read a bit and its complement
-			id_bit = OWReadBit();
-			cmp_id_bit = OWReadBit();
+			id_bit = OWReadBit(OWx);
+			cmp_id_bit = OWReadBit(OWx);
 
 			// check for no devices on 1-wire
 			if ((id_bit == 1) && (cmp_id_bit == 1))
@@ -461,7 +430,7 @@ int OWSearch()
 					ROM_NO[rom_byte_number] &= ~rom_byte_mask;
 
 				// serial number search direction write bit
-				OWWriteBit(search_direction);
+				OWWriteBit(OWx, search_direction);
 
 				// increment the byte counter id_bit_number
 				// and shift the mask rom_byte_mask
@@ -510,7 +479,7 @@ int OWSearch()
 // Return TRUE  : device verified present
 //        FALSE : device not present
 //
-int OWVerify()
+int OWVerify(onewire_port_t OWx)
 {
 	unsigned char rom_backup[8];
 	int i,rslt,ld_backup,ldf_backup,lfd_backup;
@@ -526,7 +495,7 @@ int OWVerify()
 	LastDiscrepancy = 64;
 	LastDeviceFlag = OW_FALSE;
 
-	if (OWSearch())
+	if (OWSearch(OWx))
 	{
 		// check if same device found
 		rslt = OW_TRUE;
@@ -594,36 +563,36 @@ void OWFamilySkipSetup()
 // Return TRUE  : device present
 //        FALSE : no device present
 //
-int OWReset()
+int OWReset(onewire_port_t OWx)
 {
 	// platform specific
 	// TMEX API TEST BUILD
 	//return (TMTouchReset(session_handle) == 1);
-	return (onewire_OW3_sendResetBasic() == 1);
+	return (onewire_sendResetBasic(OWx) == 1);
 }
 
 //--------------------------------------------------------------------------
 // Send 8 bits of data to the 1-Wire bus
 //
-void OWWriteByte(unsigned char byte_value)
+void OWWriteByte(onewire_port_t OWx, unsigned char byte_value)
 {
 	// platform specific
 
 	// TMEX API TEST BUILD
 	//TMTouchByte(session_handle,byte_value);
-	onewire_OW3_sendByte(byte_value);
+	onewire_sendByte(OWx, byte_value);
 }
 
 //--------------------------------------------------------------------------
 // Send 1 bit of data to teh 1-Wire bus
 //
-void OWWriteBit(unsigned char bit_value)
+void OWWriteBit(onewire_port_t OWx, unsigned char bit_value)
 {
 	// platform specific
 
 	// TMEX API TEST BUILD
 	//TMTouchBit(session_handle,(short)bit_value);
-	onewire_OW3_sendBit(bit_value);
+	onewire_sendBit(OWx, bit_value);
 }
 
 //--------------------------------------------------------------------------
@@ -631,14 +600,14 @@ void OWWriteBit(unsigned char bit_value)
 // Return 1 : bit read is 1
 //        0 : bit read is 0
 //
-unsigned char OWReadBit()
+unsigned char OWReadBit(onewire_port_t OWx)
 {
 	// platform specific
 
 	// TMEX API TEST BUILD
 
 	//return (unsigned char)TMTouchBit(session_handle,0x01);
-	return (unsigned char)onewire_OW3_ReadBasic();
+	return (unsigned char)onewire_ReadBasic(OWx);
 
 }
 

@@ -57,3 +57,82 @@ void init_HSI(void){
 	DBGMCU_Config(DBGMCU_CR_DBG_STOP, ENABLE);
 	DBGMCU_Config(DBGMCU_CR_DBG_STANDBY, ENABLE);
 }
+
+void init_TIM2_Configuration(void){
+	TIM_TimeBaseInitTypeDef timerOW3;
+	NVIC_InitTypeDef NVIC_InitStruct;
+
+	//Period between interrupts is (Period-1)/(16000000/(Prescaler-1))
+	timerOW3.TIM_Prescaler = 31;
+	timerOW3.TIM_CounterMode = TIM_CounterMode_Up;
+	timerOW3.TIM_Period = 1000;
+	timerOW3.TIM_ClockDivision = TIM_CKD_DIV1;
+	TIM_TimeBaseInit(TIM2, &timerOW3);
+	TIM_Cmd(TIM2, ENABLE);
+	TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE);
+
+	NVIC_InitStruct.NVIC_IRQChannel = TIM2_IRQn;
+	NVIC_InitStruct.NVIC_IRQChannelPreemptionPriority = 0;
+	NVIC_InitStruct.NVIC_IRQChannelSubPriority = 1;
+	NVIC_InitStruct.NVIC_IRQChannelCmd = ENABLE;
+
+	NVIC_Init(&NVIC_InitStruct);
+}
+
+volatile static TIM2_flag = 0;
+void TIM2_IRQHandler()
+{
+	if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET)
+	{
+		TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
+		TIM2_flag = 1;
+	}
+}
+
+void __inline__ init_TIM2_Change_Period(uint16_t period){
+	//By disabling events, we can modify the Period register safely.
+	//Once updated, re-enabling UEV events clears the existing counters,
+	//giving us a clean slate to start from.
+	TIM2->CNT = 0;
+	TIM2->CR1 |= TIM_CR1_UDIS; //Disable UEV events
+	TIM2_flag = 0;
+	TIM2->ARR = period;
+	TIM2->CR1 &= ~TIM_CR1_UDIS; //Enable UEV events
+}
+
+void delayms(uint32_t msec){
+	while (msec-- > 0){
+		delayus(1000);
+	}
+}
+
+void delayus(uint16_t usec){
+	//TIM2->CR1 |= TIM_CR1_CEN;  //Enable TIM2
+	if (usec <= 2){
+		return;
+	}else if (usec < 10){
+		uint16_t counter = usec * 2 - 1;
+		while(counter-- > 0)
+			asm("nop");
+		return;
+	}
+	init_TIM2_Change_Period(usec);
+	while(TIM2_flag == 0){
+		//__WFI();  //can cause debugger to think it has disconnected, explore http://nuttx.org/doku.php?id=wiki:howtos:jtag-debugging
+	};
+	//TIM2->CR1 &= (uint16_t)(~((uint16_t)TIM_CR1_CEN)); //DISABLE TIM2
+}
+
+void startDelayus(uint16_t usec){
+	init_TIM2_Change_Period(usec);
+}
+
+void waitSpecificCount(uint16_t usec){
+	while(TIM_GetCounter(TIM2) < usec){};
+}
+void waitStartedDelay(void){
+	while(TIM2_flag == 0){
+		//__WFI();  //can cause debugger to think it has disconnected, explore http://nuttx.org/doku.php?id=wiki:howtos:jtag-debugging
+	};
+}
+

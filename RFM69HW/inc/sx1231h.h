@@ -1248,6 +1248,6 @@
 
 
 void sx1231h_init(void);
-uint8_t sx1231h_present(void);
+uint8_t sx1231h_present(SPI_TypeDef* SPIx);
 
 #endif /* SX1231H_H_ */

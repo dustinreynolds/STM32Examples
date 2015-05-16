@@ -13,7 +13,7 @@ void USART2_IRQHandler(void)
 		char t = USART_ReceiveData(USART2);
 
 		//do something.
-		USART_SendData(USART2, (t+10));
+		USART_SendData(USART2, t);
 	}
 }
 
@@ -27,6 +27,16 @@ void USART1_IRQHandler(void)
 	}
 }
 
+void UART5_IRQHandler(void)
+{
+	if( USART_GetITStatus(UART5, USART_IT_RXNE)){
+		char t = USART_ReceiveData(UART5);
+
+		//do something.
+		USART_SendData(USART2, t);
+	}
+}
+
 void uart_NVIC_init(USART_TypeDef * USARTx)
 {
 	NVIC_InitTypeDef NVIC_InitStructure;
@@ -35,6 +45,8 @@ void uart_NVIC_init(USART_TypeDef * USARTx)
 		NVIC_InitStructure.NVIC_IRQChannel = USART1_IRQn;
 	}else if (USARTx == USART2){
 		NVIC_InitStructure.NVIC_IRQChannel = USART2_IRQn;
+	}else if (USARTx == UART5){
+		NVIC_InitStructure.NVIC_IRQChannel = UART5_IRQn;
 	}
 	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
 	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
@@ -49,6 +61,8 @@ void uart_NVIC_deinit(USART_TypeDef * USARTx)
 	if (USARTx == USART1){
 		NVIC_InitStructure.NVIC_IRQChannel = USART1_IRQn;
 	}else if (USARTx == USART2){
+		NVIC_InitStructure.NVIC_IRQChannel = USART2_IRQn;
+	}else if (USARTx == UART5){
 		NVIC_InitStructure.NVIC_IRQChannel = USART2_IRQn;
 	}
 	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
@@ -75,7 +89,7 @@ void uart_Configuration(USART_TypeDef * USARTx, uart_init_mode_t mode)
 	}
 
 	USART_StructInit(&USART_InitStructure);
-	USART_InitStructure.USART_BaudRate = 9600;
+	USART_InitStructure.USART_BaudRate = 38400;
 	USART_InitStructure.USART_WordLength = USART_WordLength_8b;
 	USART_InitStructure.USART_StopBits = USART_StopBits_1;
 	USART_InitStructure.USART_Parity = USART_Parity_No;
@@ -88,8 +102,6 @@ void uart_Configuration(USART_TypeDef * USARTx, uart_init_mode_t mode)
 
 	USART_ITConfig(USARTx, USART_IT_RXNE, ENABLE);
 }
-
-
 
 void uart_OutString(USART_TypeDef * USARTx, char *s)
 {

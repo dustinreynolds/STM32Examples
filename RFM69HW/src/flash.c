@@ -90,9 +90,9 @@ uint16_t flash_view_status(void){
 void flash_enable_write(uint8_t enable){
 	GPIOC->BSRRH |= GPIO_Pin_8;
 	if (enable)
-		spi_send(FLASH_WRITE_ENABLE);
+		spi_send(SPI2, FLASH_WRITE_ENABLE);
 	else
-		spi_send(FLASH_WRITE_DISABLE);
+		spi_send(SPI2, FLASH_WRITE_DISABLE);
 	GPIOC->BSRRL |= GPIO_Pin_8;
 }
 
@@ -114,12 +114,12 @@ void flash_read(uint8_t * data, uint32_t address, uint32_t size){
 void flash_read_nonDMA(uint8_t * data, uint32_t address, uint32_t size){
 	uint32_t i;
 	GPIOC->BSRRH |= GPIO_Pin_8;
-	spi_send(FLASH_READ_DATA);
-	spi_send((address >> 8 & 0xFF));
-	spi_send((address & 0xFF));
-	spi_send(0x00);
+	spi_send(SPI2, FLASH_READ_DATA);
+	spi_send(SPI2, (address >> 8 & 0xFF));
+	spi_send(SPI2, (address & 0xFF));
+	spi_send(SPI2, 0x00);
 	for(i = 0; i < size; i++){
-		*data++ = spi_send(0x00);
+		*data++ = spi_send(SPI2, 0x00);
 	}
 	GPIOC->BSRRL |= GPIO_Pin_8;
 }
@@ -193,7 +193,7 @@ uint8_t flash_erase_all(void){
 	uint8_t success_ctr = 0;
 	flash_enable_write(1);
 	GPIOC->BSRRH |= GPIO_Pin_8;
-	spi_send(FLASH_BULK_ERASE);
+	spi_send(SPI2, FLASH_BULK_ERASE);
 	GPIOC->BSRRL |= GPIO_Pin_8;
 
 	//Wait for it to finish

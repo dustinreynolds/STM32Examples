@@ -25,6 +25,7 @@ int main(void)
 	init_TIM2_Configuration();
 
 	spi_SPI2_Configuration();
+	spi_SPI3_Configuration();
 
 	delayms(20);
 
@@ -51,7 +52,7 @@ int main(void)
 		}else{
 			uart_OutString("SPI Flash Passed\r\n");
 		}
-		if(sx1231h_present() == 0){
+		if(sx1231h_present(SPI2) == 0){
 			uart_OutString("SPI RFM69HW/SX1231H Failed\r\n");
 		}else{
 			uart_OutString("SPI RFM69HW/SX1231H Passed\r\n");

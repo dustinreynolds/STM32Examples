@@ -164,12 +164,22 @@ void sx1231h_init(void){
 	}
 }
 
-uint8_t sx1231h_present(void){
+uint8_t sx1231h_present(SPI_TypeDef* SPIx){
 	uint16_t i;
 
-	GPIOB->BSRRH |= GPIO_Pin_12;
-	i = spi_read_register(REG_VERSION);
-	GPIOB->BSRRL |= GPIO_Pin_12;
+	if (SPIx == SPI2){
+		GPIOB->BSRRH |= GPIO_Pin_12;
+	} else if (SPIx == SPI3){
+		GPIOA->BSRRH |= GPIO_Pin_15;
+	}
+
+	i = spi_read_register(SPIx, REG_VERSION);
+
+	if (SPIx == SPI2){
+		GPIOB->BSRRL |= GPIO_Pin_12;
+	} else if (SPIx == SPI3){
+		GPIOA->BSRRL |= GPIO_Pin_15;
+	}
 	if (i== 0x24)
 		return 1;
 	return 0;

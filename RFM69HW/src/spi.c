@@ -18,6 +18,8 @@ void spi_SPI2_Configuration(void){
 	/* Set All CS lines high */
 	GPIOC->BSRRL |= GPIO_Pin_8;
 	GPIOB->BSRRL |= GPIO_Pin_12;
+	GPIOA->BSRRL |= GPIO_Pin_15;
+	GPIOB->BSRRL |= GPIO_Pin_7;
 
 	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
 
@@ -72,13 +74,32 @@ void spi_SPI2_Configuration(void){
 	SPI_Cmd(SPI2, ENABLE);
 }
 
-uint8_t __inline__ spi_send(uint8_t data){
-	SPI2->DR = data;
-	while(!(SPI2->SR & SPI_I2S_FLAG_TXE));
-	while(!(SPI2->SR & SPI_I2S_FLAG_RXNE));
-	while(SPI2->SR & SPI_I2S_FLAG_BSY);
+void spi_SPI3_Configuration(void){
+	SPI_InitTypeDef SPI_InitStruct;
 
-	return SPI2->DR;
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_SPI3, ENABLE);
+
+	SPI_StructInit(&SPI_InitStruct);
+	SPI_InitStruct.SPI_Direction = SPI_Direction_2Lines_FullDuplex;
+	SPI_InitStruct.SPI_Mode = SPI_Mode_Master;
+	SPI_InitStruct.SPI_DataSize = SPI_DataSize_8b;
+	SPI_InitStruct.SPI_CPOL = SPI_CPOL_Low;
+	SPI_InitStruct.SPI_CPHA = SPI_CPHA_1Edge;
+	SPI_InitStruct.SPI_NSS = SPI_NSS_Soft | SPI_NSSInternalSoft_Set;
+	SPI_InitStruct.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_2; //32/2 = 16MHz
+	SPI_InitStruct.SPI_FirstBit = SPI_FirstBit_MSB;
+	SPI_Init(SPI3, &SPI_InitStruct);
+
+	SPI_Cmd(SPI3, ENABLE);
+}
+
+uint8_t __inline__ spi_send(SPI_TypeDef* SPIx, uint8_t data){
+	SPIx->DR = data;
+	while(!(SPIx->SR & SPI_I2S_FLAG_TXE));
+	while(!(SPIx->SR & SPI_I2S_FLAG_RXNE));
+	while(SPIx->SR & SPI_I2S_FLAG_BSY);
+
+	return SPIx->DR;
 }
 
 uint8_t spi_write_register(uint8_t reg_cmd, uint8_t reg_op){
@@ -96,19 +117,19 @@ uint8_t spi_write_register(uint8_t reg_cmd, uint8_t reg_op){
 	return SPI2->DR;
 }
 
-uint8_t spi_read_register(uint8_t reg_cmd){
+uint8_t spi_read_register(SPI_TypeDef* SPIx, uint8_t reg_cmd){
 	uint8_t dummy;
-	SPI2->DR = reg_cmd;
-	while(!(SPI2->SR & SPI_I2S_FLAG_TXE));
-	while(!(SPI2->SR & SPI_I2S_FLAG_RXNE));
-	while(SPI2->SR & SPI_I2S_FLAG_BSY);
-	dummy = SPI2->DR;
+	SPIx->DR = reg_cmd;
+	while(!(SPIx->SR & SPI_I2S_FLAG_TXE));
+	while(!(SPIx->SR & SPI_I2S_FLAG_RXNE));
+	while(SPIx->SR & SPI_I2S_FLAG_BSY);
+	dummy = SPIx->DR;
 
-	SPI2->DR = 0x00;
-	while(!(SPI2->SR & SPI_I2S_FLAG_TXE));
-	while(!(SPI2->SR & SPI_I2S_FLAG_RXNE));
-	while(SPI2->SR & SPI_I2S_FLAG_BSY);
-	return SPI2->DR;
+	SPIx->DR = 0x00;
+	while(!(SPIx->SR & SPI_I2S_FLAG_TXE));
+	while(!(SPIx->SR & SPI_I2S_FLAG_RXNE));
+	while(SPIx->SR & SPI_I2S_FLAG_BSY);
+	return SPIx->DR;
 }
 
 uint8_t __inline__ spi_send_buffer(uint32_t size){

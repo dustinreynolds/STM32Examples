@@ -25,6 +25,78 @@ void i2c_init(void){
 	I2C_Cmd(I2C2, ENABLE);
 }
 
+void _i2c_start_address(I2C_TypeDef* I2Cx, uint8_t address, uint8_t I2C_Direction){
+	I2C_GenerateSTART(I2Cx, ENABLE);
+	while(!I2C_GetFlagStatus(I2Cx, I2C_FLAG_SB));
+
+	I2C_AcknowledgeConfig(I2Cx, ENABLE);
+
+	if (I2C_Direction == I2C_Direction_Transmitter){
+		I2C_Send7bitAddress(I2Cx, address<<1, I2C_Direction_Transmitter);
+
+		while(!(I2C_GetFlagStatus(I2Cx, I2C_FLAG_ADDR)));
+
+	}else{
+		I2C_Send7bitAddress(I2Cx, address<<1, I2C_Direction_Receiver);
+
+		while (!I2C_CheckEvent(I2Cx, I2C_EVENT_MASTER_RECEIVER_MODE_SELECTED));
+	}
+
+	I2C_ReadRegister(I2Cx, I2C_Register_SR2);
+}
+
+void _i2c_stop(I2C_TypeDef* I2Cx){
+	while(!I2C_GetFlagStatus(I2Cx, I2C_FLAG_TXE | I2C_FLAG_BTF));
+	I2C_GenerateSTOP(I2Cx, ENABLE);
+}
+
+void _i2c_write(I2C_TypeDef* I2Cx, uint8_t byte){
+	while (!I2C_GetFlagStatus(I2Cx,I2C_FLAG_TXE));
+	I2C_SendData(I2Cx, byte);
+}
+
+void _i2c_read(I2C_TypeDef* I2Cx, uint8_t ack, uint8_t * byte){
+
+	if (ack == ACK){
+		I2Cx->CR1 |= I2C_CR1_ACK;
+	}else{
+		I2Cx->CR1 &= (uint16_t)~((uint16_t)I2C_CR1_ACK);
+	}
+
+	while (!I2C_CheckEvent(I2Cx, I2C_EVENT_MASTER_BYTE_RECEIVED));
+
+	*byte = I2C_ReceiveData(I2Cx);
+}
+
+void i2c_temp_set_address(I2C_TypeDef* I2Cx, uint8_t address){
+	_i2c_start_address(I2Cx, DS3231_I2C_ADDR,I2C_Direction_Transmitter);
+	_i2c_write(I2Cx, address);
+	_i2c_stop(I2Cx);
+}
+
+void i2c_temp_write_reg(I2C_TypeDef* I2Cx, uint8_t address, uint8_t value){
+	_i2c_start_address(I2Cx, DS3231_I2C_ADDR,I2C_Direction_Transmitter);
+	_i2c_write(I2Cx, address);
+	_i2c_write(I2Cx, value);
+	_i2c_stop(I2Cx);
+}
+
+void i2c_temp_read_register(I2C_TypeDef* I2Cx, uint8_t address, uint8_t * value){
+	i2c_temp_set_address(I2Cx, address);
+
+	_i2c_start_address(I2Cx, DS3231_I2C_ADDR,I2C_Direction_Receiver);
+	_i2c_read(I2Cx, NACK, value);
+}
+
+void i2c_temp_read_registers(I2C_TypeDef* I2Cx, uint8_t address, uint8_t * data, uint8_t count){
+	i2c_temp_set_address(I2Cx, address);
+
+	_i2c_start_address(I2Cx, DS3231_I2C_ADDR,I2C_Direction_Receiver);
+	while (--count > 0)
+		_i2c_read(I2Cx, ACK, data++);
+	_i2c_read(I2Cx, NACK, data);
+}
+
 /* I2C Set Address conforms to Manual */
 void i2c_ds3231_set_address(I2C_TypeDef* I2Cx, uint8_t address){
 	I2C_GenerateSTART(I2Cx, ENABLE);

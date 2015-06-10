@@ -8,6 +8,9 @@
 #ifndef I2C_H_
 #define I2C_H_
 
+#define ACK	1
+#define NACK 2
+
 #define DS3231_CONTROL_REG		0x0E //Control Register
 #define DS3231_CONTROL_EOSC		0x80 //Enable Oscillator
 #define DS3231_CONTROL_BBSWE	0x40 //Battery Backed Square Wave Enable
@@ -21,6 +24,10 @@
 
 
 void i2c_init(void);
+void i2c_temp_write_reg(I2C_TypeDef* I2Cx, uint8_t address, uint8_t value);
+void i2c_temp_read_register(I2C_TypeDef* I2Cx, uint8_t address, uint8_t * value);
+
+
 void i2c_ds3231_read_control_register(I2C_TypeDef* I2Cx, uint8_t * value);
 void i2c_ds3231_write_control_register(I2C_TypeDef* I2Cx, uint8_t value);
 void i2c_ds3231_dump_all_reg(I2C_TypeDef* I2Cx, uint8_t * data);

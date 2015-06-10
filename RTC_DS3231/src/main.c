@@ -27,22 +27,22 @@ int main(void)
 	uart_OutString(USARTx,"Welcome to Nucleo L152RE\r\n");
 	uart_OutString(USARTx," Example for interfacing with a DS3231 RTC\r\n");
 
-	while(1)
-	{
-		uint8_t control;
-		//Write before read always succeeds, read before write fails after 5 iterations.
-		i2c_ds3231_read_control_register(I2C2, &control);
-		i2c_ds3231_write_control_register(I2C2,DS3231_CONTROL_RS2 | DS3231_CONTROL_RS1 | DS3231_CONTROL_INTCN);
-
-		if (control != (DS3231_CONTROL_RS2 | DS3231_CONTROL_RS1 | DS3231_CONTROL_INTCN)){
-			uart_OutString(USARTx,"DS3231 Configured incorrectly!\r\n");
-		}else{
-			uart_OutString(USARTx,"DS3231 Present\r\n");
-		}
-	}
+//	while(1)
+//	{
+//		uint8_t control;
+//		i2c_temp_write_reg(I2C2,DS3231_CONTROL_REG, DS3231_CONTROL_RS2 | DS3231_CONTROL_RS1 | DS3231_CONTROL_INTCN);
+//		i2c_temp_read_register(I2C2,DS3231_CONTROL_REG, &control);
+//
+//		if (control != (DS3231_CONTROL_RS2 | DS3231_CONTROL_RS1 | DS3231_CONTROL_INTCN)){
+//			uart_OutString(USARTx,"DS3231 Configured incorrectly!\r\n");
+//		}else{
+//			uart_OutString(USARTx,"DS3231 Present\r\n");
+//		}
+//	}
 
 	while(1){
-		i2c_ds3231_dump_all_reg(I2C2, data);
+		i2c_temp_read_registers(I2C2,0x00, data, 19);
+		//i2c_ds3231_dump_all_reg(I2C2, data);
 
 		for (i = 0; i < 19; i++){
 			char buffer[30];

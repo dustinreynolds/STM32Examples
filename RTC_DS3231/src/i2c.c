@@ -25,59 +25,81 @@ void i2c_init(void){
 	I2C_Cmd(I2C2, ENABLE);
 }
 
+/* I2C Set Address conforms to Manual */
 void i2c_ds3231_set_address(I2C_TypeDef* I2Cx, uint8_t address){
-	I2C_AcknowledgeConfig(I2Cx, ENABLE);
-	while (I2C_GetFlagStatus(I2Cx,I2C_FLAG_BUSY));
-
 	I2C_GenerateSTART(I2Cx, ENABLE);
 	while(!I2C_GetFlagStatus(I2Cx, I2C_FLAG_SB));
+
+	I2C_AcknowledgeConfig(I2Cx, ENABLE);
 
 	I2C_Send7bitAddress(I2Cx, DS3231_I2C_ADDR<<1, I2C_Direction_Transmitter);
 	while(!I2C_CheckEvent(I2Cx, I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED));
 
 	I2C_SendData(I2Cx, address);
-	while (!I2C_GetFlagStatus(I2Cx,I2C_FLAG_TXE));
 
 	I2C_GenerateSTOP(I2Cx, ENABLE);
-	while(I2C_GetFlagStatus(I2Cx, I2C_FLAG_STOPF));
+	while(!I2C_GetFlagStatus(I2Cx, I2C_FLAG_TXE | I2C_FLAG_BTF));
+
+//	I2Cx->CR1 |= I2C_CR1_START;
+//	while (!(I2Cx->SR1 & I2C_SR1_SB));
+//
+//	I2Cx->CR1 |= I2C_CR1_ACK;
+//
+//	I2Cx->DR = (DS3231_I2C_ADDR<<1) & ~I2C_OAR1_ADD0;
+//	while(!(I2Cx->SR1 & I2C_SR1_ADDR));
+//
+//	I2Cx->SR2;
+//
+//	//send address here
+//	while (!(I2Cx->SR1 & I2C_SR1_TXE));
+//
+//	I2Cx->DR = address;
+//
+//	I2Cx->CR1 |= I2C_CR1_STOP;
+//	while (((!(I2Cx->SR1 & I2C_SR1_TXE)) || (!(I2Cx->SR1 & I2C_SR1_BTF))));
 }
+
 void i2c_ds3231_write_address(I2C_TypeDef* I2Cx, uint8_t address, uint8_t value){
 	//This needs to first set, then write
 	//or combined?
-	I2C_AcknowledgeConfig(I2Cx, ENABLE);
-	while (I2C_GetFlagStatus(I2Cx,I2C_FLAG_BUSY));
-
 	I2C_GenerateSTART(I2Cx, ENABLE);
 	while(!I2C_GetFlagStatus(I2Cx, I2C_FLAG_SB));
+
+	I2C_AcknowledgeConfig(I2Cx, ENABLE);
 
 	I2C_Send7bitAddress(I2Cx, DS3231_I2C_ADDR<<1, I2C_Direction_Transmitter);
-	while(!I2C_CheckEvent(I2Cx, I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED));
+	//while(!I2C_CheckEvent(I2Cx, I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED));
+	while(!(I2C_GetFlagStatus(I2Cx, I2C_FLAG_ADDR)));
+	I2C_ReadRegister(I2Cx, I2C_Register_SR2);
 
+	while (!I2C_GetFlagStatus(I2Cx,I2C_FLAG_TXE));
 	I2C_SendData(I2Cx, address);
-	while (!I2C_GetFlagStatus(I2Cx,I2C_FLAG_TXE));
 
+	while (!I2C_GetFlagStatus(I2Cx,I2C_FLAG_TXE));
 	I2C_SendData(I2Cx, value);
-	while (!I2C_GetFlagStatus(I2Cx,I2C_FLAG_TXE));
 
+	while(!I2C_GetFlagStatus(I2Cx, I2C_FLAG_TXE | I2C_FLAG_BTF));
 	I2C_GenerateSTOP(I2Cx, ENABLE);
-	while(I2C_GetFlagStatus(I2Cx, I2C_FLAG_STOPF));
+
 }
 void i2c_ds3231_read_byte(I2C_TypeDef* I2Cx, uint8_t * data){
-
 	I2C_GenerateSTART(I2Cx, ENABLE);
 	while(!I2C_GetFlagStatus(I2Cx, I2C_FLAG_SB));
 
+	I2C_AcknowledgeConfig(I2Cx, ENABLE);
+
 	I2C_Send7bitAddress(I2Cx, DS3231_I2C_ADDR<<1, I2C_Direction_Receiver);
+
 	while (!I2C_CheckEvent(I2Cx, I2C_EVENT_MASTER_RECEIVER_MODE_SELECTED));
-
-	while (!I2C_CheckEvent(I2Cx, I2C_EVENT_MASTER_BYTE_RECEIVED));
-	*data = I2C_ReceiveData(I2Cx);
-
 	I2C_NACKPositionConfig(I2Cx, I2C_NACKPosition_Current);
-	I2C_AcknowledgeConfig(I2Cx, DISABLE);
 
 	I2C_GenerateSTOP(I2Cx, ENABLE);
-	while(I2C_GetFlagStatus(I2Cx, I2C_FLAG_STOPF));
+
+	while (!I2C_CheckEvent(I2Cx, I2C_EVENT_MASTER_BYTE_RECEIVED));
+
+	data[0] = I2C_ReceiveData(I2Cx);
+
+	asm("nop");
 }
 
 void i2c_ds3231_read_control_register(I2C_TypeDef* I2Cx, uint8_t * value){
@@ -93,8 +115,8 @@ void i2c_ds3231_dump_all_reg(I2C_TypeDef* I2Cx, uint8_t * data){
 	uint8_t recv[20];
 	uint8_t i;
 
-	 I2C_AcknowledgeConfig(I2Cx, ENABLE);
-	 while (I2C_GetFlagStatus(I2Cx,I2C_FLAG_BUSY));
+	I2C_AcknowledgeConfig(I2Cx, ENABLE);
+	while (I2C_GetFlagStatus(I2Cx,I2C_FLAG_BUSY));
 
 	I2C_GenerateSTART(I2Cx, ENABLE);
 

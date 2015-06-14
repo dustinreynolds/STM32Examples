@@ -139,6 +139,205 @@ void i2c_ds3231_read_registers(I2C_TypeDef* I2Cx, uint8_t address, uint8_t * dat
 	_i2c_read(I2Cx, NACK, data);
 }
 
+
+
+void i2c_ds3231_set_time_date(I2C_TypeDef* I2Cx, DS3231_time_t time, DS3231_date_t date){
+	uint8_t reg;
+
+	//Write to registers
+	reg = ((time.seconds / 10) << 4 ) | time.seconds % 10;
+	i2c_ds3231_write_reg(I2Cx,DS3231_SECONDS_REG, reg);
+
+	reg = ((time.minutes / 10) << 4 ) | time.minutes % 10;
+	i2c_ds3231_write_reg(I2Cx,DS3231_MINUTES_REG, reg);
+
+	if(time.is_ampm_time){
+		reg = (time.is_ampm_time << 6) | (time.am_pm << 5) | ((time.hours / 10) << 4 ) | time.hours % 10;
+	}else{
+		reg = (time.is_ampm_time << 6) | ((time.hours / 10) << 4 ) | time.hours % 10;
+	}
+	i2c_ds3231_write_reg(I2Cx,DS3231_HOUR_REG, reg);
+
+	reg = date.day;
+	i2c_ds3231_write_reg(I2Cx,DS3231_DAY_REG, reg);
+
+	reg = ((date.date / 10) << 4 ) | date.date % 10;
+	i2c_ds3231_write_reg(I2Cx,DS3231_DATE_REG, reg);
+
+	reg = ((date.month / 10) << 4) | date.month % 10;
+	i2c_ds3231_write_reg(I2Cx,DS3231_MONTH_REG, reg);
+
+	reg = ((date.year / 10) << 4) | date.year % 10;
+	i2c_ds3231_write_reg(I2Cx,DS3231_YEAR_REG, reg);
+}
+
+void i2c_ds3231_read_time_date(I2C_TypeDef* I2Cx, DS3231_time_t * time, DS3231_date_t * date){
+	uint8_t temp[7];
+	i2c_ds3231_read_registers(I2Cx, 0x00, temp, 7);
+
+	time->seconds = ((temp[0] & 0x70) >> 4) * 10 + (temp[0] & 0x0F);
+	time->minutes = ((temp[1] & 0x70) >> 4) * 10 + (temp[1] & 0x0F);
+	if ((temp[2] & 0x40) > 0){
+		time->is_ampm_time = 1;
+		time->am_pm = (temp[2] & 0x20) >> 5;
+		time->hours = ((temp[2] & 0x10) >> 4) * 10 + (temp[2] & 0x0F);
+	}else{
+		time->is_ampm_time = 0;
+		time->am_pm = 0;
+		time->hours = ((temp[2] & 0x30) >> 4) * 10 + (temp[2] & 0x0F);
+	}
+
+	date->day = temp[3];
+	date->date = ((temp[4] & 0x30 ) >> 4) * 10 + (temp[4] & 0x0F);
+
+	date->month = ((temp[5] & 0x10 ) >> 4 ) * 10 + (temp[5] & 0x0F);
+	date->year = ((temp[6] & 0xFF) >> 4 ) * 10 + (temp[6] & 0x0F);
+}
+
+float i2c_ds3231_read_temperature(I2C_TypeDef* I2Cx){
+	uint8_t temp[2];
+	float temperature;
+	i2c_ds3231_read_registers(I2Cx, DS3231_MSB_TEMP_REG, temp, 2);
+
+	//http://ideone.com/seM4DH
+	if ((temp[0] & 0x80) > 0){
+		temperature = (char)temp[0] + ((float)(temp[1] >> 6))/4.0;
+	}else{
+		temperature = temp[0] + ((float)(temp[1] >> 6))/4.0;
+	}
+	return temperature;
+}
+
+void i2c_ds3231_set_alarm_1(I2C_TypeDef* I2Cx, DS3231_alarm_t alarm){
+	//given alarm settings, set alarm accordingly
+	uint8_t temp[4];
+
+	temp[0] = (alarm.AMx[0] << 7) | ((alarm.seconds / 10) << 4 ) | alarm.seconds % 10;
+	temp[1] = (alarm.AMx[1] << 7) | ((alarm.minutes / 10) << 4 ) | alarm.minutes % 10;
+	if(alarm.is_ampm_time){
+		temp[2] = (alarm.AMx[2] << 7) | (alarm.is_ampm_time << 6) | (alarm.am_pm << 5) | ((alarm.hours / 10) << 4 ) | alarm.hours % 10;
+	}else{
+		temp[2] = (alarm.AMx[2] << 7) | (alarm.is_ampm_time << 6) | ((alarm.hours / 10) << 4 ) | alarm.hours % 10;
+	}
+
+	if(alarm.day_or_date){
+		temp[3] = (alarm.AMx[3] << 7) | (alarm.day_or_date << 6) | alarm.day;
+	}else{
+		temp[3] = (alarm.AMx[3] << 7) | (alarm.day_or_date << 6) | ((alarm.date / 10) << 4 ) | alarm.date % 10;
+	}
+
+	i2c_ds3231_write_registers(I2Cx, DS3231_ALARM_1_SECONDS_REG, temp, 4);
+}
+
+void i2c_ds3231_read_alarm_1(I2C_TypeDef* I2Cx, DS3231_alarm_t * alarm){
+	uint8_t temp[4];
+	i2c_ds3231_read_registers(I2Cx, DS3231_ALARM_1_SECONDS_REG, temp, 4);
+
+	alarm->seconds = ((temp[0] & 0x70) >> 4) * 10 + (temp[0] & 0x0F);
+	alarm->AMx[0] = (temp[0] & 0x80) >> 7;
+	alarm->minutes = ((temp[1] & 0x70) >> 4) * 10 + (temp[1] & 0x0F);
+	alarm->AMx[1] = (temp[1] & 0x80) >> 7;
+
+	if ((temp[2] & 0x40) > 0){
+		alarm->is_ampm_time = 1;
+		alarm->am_pm = (temp[2] & 0x20) >> 5;
+		alarm->hours = ((temp[2] & 0x10) >> 4) * 10 + (temp[2] & 0x0F);
+	}else{
+		alarm->is_ampm_time = 0;
+		alarm->am_pm = 0;
+		alarm->hours = ((temp[2] & 0x30) >> 4) * 10 + (temp[2] & 0x0F);
+	}
+	alarm->AMx[2] = (temp[2] & 0x80) >> 7;
+
+	if ((temp[3] & 0x40) > 0){
+		alarm->day = temp[3] & 0x0F;
+		alarm->date = 0;
+	}else{
+
+		alarm->date = ((temp[3] & 0x30 ) >> 4) * 10 + (temp[3] & 0x0F);
+		alarm->day = 0;
+	}
+	alarm->day_or_date = (temp[3] & 0x40) >> 6;
+	alarm->AMx[3] = (temp[3] & 0x80) >> 7;
+}
+
+void i2c_ds3231_set_alarm_2(I2C_TypeDef* I2Cx, DS3231_alarm_t alarm){
+	//given alarm settings, set alarm accordingly
+	uint8_t temp[3];
+
+	temp[0] = (alarm.AMx[1] << 7) | ((alarm.minutes / 10) << 4 ) | alarm.minutes % 10;
+	if(alarm.is_ampm_time){
+		temp[1] = (alarm.AMx[2] << 7) | (alarm.is_ampm_time << 6) | (alarm.am_pm << 5) | ((alarm.hours / 10) << 4 ) | alarm.hours % 10;
+	}else{
+		temp[1] = (alarm.AMx[2] << 7) | (alarm.is_ampm_time << 6) | ((alarm.hours / 10) << 4 ) | alarm.hours % 10;
+	}
+
+	if(alarm.day_or_date){
+		temp[2] = (alarm.AMx[3] << 7) | (alarm.day_or_date << 6) | alarm.day;
+	}else{
+		temp[2] = (alarm.AMx[3] << 7) | (alarm.day_or_date << 6) | ((alarm.date / 10) << 4 ) | alarm.date % 10;
+	}
+
+	i2c_ds3231_write_registers(I2Cx, DS3231_ALARM_2_MINUTES_REG, temp, 3);
+}
+
+void i2c_ds3231_read_alarm_2(I2C_TypeDef* I2Cx, DS3231_alarm_t * alarm){
+	uint8_t temp[3];
+	i2c_ds3231_read_registers(I2Cx, DS3231_ALARM_2_MINUTES_REG, temp, 3);
+
+	alarm->minutes = ((temp[0] & 0x70) >> 4) * 10 + (temp[0] & 0x0F);
+	alarm->AMx[1] = (temp[0] & 0x80) >> 7;
+
+	if ((temp[1] & 0x40) > 0){
+		alarm->is_ampm_time = 1;
+		alarm->am_pm = (temp[1] & 0x20) >> 5;
+		alarm->hours = ((temp[1] & 0x10) >> 4) * 10 + (temp[1] & 0x0F);
+	}else{
+		alarm->is_ampm_time = 0;
+		alarm->am_pm = 0;
+		alarm->hours = ((temp[1] & 0x30) >> 4) * 10 + (temp[1] & 0x0F);
+	}
+	alarm->AMx[2] = (temp[1] & 0x80) >> 7;
+
+	if ((temp[2] & 0x40) > 0){
+		alarm->day = temp[2] & 0x0F;
+		alarm->date = 0;
+	}else{
+
+		alarm->date = ((temp[2] & 0x30 ) >> 4) * 10 + (temp[2] & 0x0F);
+		alarm->day = 0;
+	}
+	alarm->day_or_date = (temp[2] & 0x40) >> 6;
+	alarm->AMx[3] = (temp[2] & 0x80) >> 7;
+}
+
+uint8_t i2c_ds3231_check_alarm_1(I2C_TypeDef* I2Cx){
+	uint8_t temp;
+	i2c_ds3231_read_register(I2Cx, DS3231_CONTROL_STATUS_REG, &temp);
+
+	if ((temp & DS3231_CONTROL_STATUS_ALARM_1_FLAG) > 0){
+		//clear flag
+		temp = temp & ~DS3231_CONTROL_STATUS_ALARM_1_FLAG; //check this
+		i2c_ds3231_write_reg(I2Cx, DS3231_CONTROL_STATUS_REG,temp);
+
+		return 1;
+	}
+	return 0;
+}
+uint8_t i2c_ds3231_check_alarm_2(I2C_TypeDef* I2Cx){
+	uint8_t temp;
+	i2c_ds3231_read_register(I2Cx, DS3231_CONTROL_STATUS_REG, &temp);
+
+	if ((temp & DS3231_CONTROL_STATUS_ALARM_2_FLAG) > 0){
+		//clear flag
+		temp = temp & ~DS3231_CONTROL_STATUS_ALARM_2_FLAG; //check this
+		i2c_ds3231_write_reg(I2Cx, DS3231_CONTROL_STATUS_REG,temp);
+
+		return 1;
+	}
+	return 0;
+}
+
 unsigned char i2c_ds3231_logic_test(DS3231_time_t time, DS3231_date_t date){
 	//Function to quickly test if we can get data into correct form and out of form
 	DS3231_time_t time2;
@@ -301,141 +500,6 @@ uint8_t i2c_ds3231_test(void){
 	return 0;
 }
 
-void i2c_ds3231_set_time_date(I2C_TypeDef* I2Cx, DS3231_time_t time, DS3231_date_t date){
-	uint8_t reg;
-
-	//Write to registers
-	reg = ((time.seconds / 10) << 4 ) | time.seconds % 10;
-	i2c_ds3231_write_reg(I2Cx,DS3231_SECONDS_REG, reg);
-
-	reg = ((time.minutes / 10) << 4 ) | time.minutes % 10;
-	i2c_ds3231_write_reg(I2Cx,DS3231_MINUTES_REG, reg);
-
-	if(time.is_ampm_time){
-		reg = (time.is_ampm_time << 6) | (time.am_pm << 5) | ((time.hours / 10) << 4 ) | time.hours % 10;
-	}else{
-		reg = (time.is_ampm_time << 6) | ((time.hours / 10) << 4 ) | time.hours % 10;
-	}
-	i2c_ds3231_write_reg(I2Cx,DS3231_HOUR_REG, reg);
-
-	reg = date.day;
-	i2c_ds3231_write_reg(I2Cx,DS3231_DAY_REG, reg);
-
-	reg = ((date.date / 10) << 4 ) | date.date % 10;
-	i2c_ds3231_write_reg(I2Cx,DS3231_DATE_REG, reg);
-
-	reg = ((date.month / 10) << 4) | date.month % 10;
-	i2c_ds3231_write_reg(I2Cx,DS3231_MONTH_REG, reg);
-
-	reg = ((date.year / 10) << 4) | date.year % 10;
-	i2c_ds3231_write_reg(I2Cx,DS3231_YEAR_REG, reg);
-}
-
-void i2c_ds3231_read_time_date(I2C_TypeDef* I2Cx, DS3231_time_t * time, DS3231_date_t * date){
-	uint8_t temp[7];
-	i2c_ds3231_read_registers(I2Cx, 0x00, temp, 7);
-
-	time->seconds = ((temp[0] & 0x70) >> 4) * 10 + (temp[0] & 0x0F);
-	time->minutes = ((temp[1] & 0x70) >> 4) * 10 + (temp[1] & 0x0F);
-	if ((temp[2] & 0x40) > 0){
-		time->is_ampm_time = 1;
-		time->am_pm = (temp[2] & 0x20) >> 5;
-		time->hours = ((temp[2] & 0x10) >> 4) * 10 + (temp[2] & 0x0F);
-	}else{
-		time->is_ampm_time = 0;
-		time->am_pm = 0;
-		time->hours = ((temp[2] & 0x30) >> 4) * 10 + (temp[2] & 0x0F);
-	}
-
-	date->day = temp[3];
-	date->date = ((temp[4] & 0x30 ) >> 4) * 10 + (temp[4] & 0x0F);
-
-	date->month = ((temp[5] & 0x10 ) >> 4 ) * 10 + (temp[5] & 0x0F);
-	date->year = ((temp[6] & 0xFF) >> 4 ) * 10 + (temp[6] & 0x0F);
-}
-
-float i2c_ds3231_read_temperature(I2C_TypeDef* I2Cx){
-	uint8_t temp[2];
-	float temperature;
-	i2c_ds3231_read_registers(I2Cx, DS3231_MSB_TEMP_REG, temp, 2);
-
-	//http://ideone.com/seM4DH
-	if ((temp[0] & 0x80) > 0){
-		temperature = (char)temp[0] + ((float)(temp[1] >> 6))/4.0;
-	}else{
-		temperature = temp[0] + ((float)(temp[1] >> 6))/4.0;
-	}
-	return temperature;
-}
-
-void i2c_ds3231_set_alarm_1(I2C_TypeDef* I2Cx, DS3231_alarm_t alarm){
-	//given alarm settings, set alarm accordingly
-	uint8_t temp[4];
-
-	temp[0] = (alarm.AMx[0] << 7) | ((alarm.seconds / 10) << 4 ) | alarm.seconds % 10;
-	temp[1] = (alarm.AMx[1] << 7) | ((alarm.minutes / 10) << 4 ) | alarm.minutes % 10;
-	if(alarm.is_ampm_time){
-		temp[2] = (alarm.AMx[2] << 7) | (alarm.is_ampm_time << 6) | (alarm.am_pm << 5) | ((alarm.hours / 10) << 4 ) | alarm.hours % 10;
-	}else{
-		temp[2] = (alarm.AMx[2] << 7) | (alarm.is_ampm_time << 6) | ((alarm.hours / 10) << 4 ) | alarm.hours % 10;
-	}
-
-	if(alarm.day_or_date){
-		temp[3] = (alarm.AMx[3] << 7) | (alarm.day_or_date << 6) | alarm.day;
-	}else{
-		temp[3] = (alarm.AMx[3] << 7) | (alarm.day_or_date << 6) | ((alarm.date / 10) << 4 ) | alarm.date % 10;
-	}
-
-	i2c_ds3231_write_registers(I2Cx, DS3231_ALARM_1_SECONDS_REG, temp, 4);
-}
-
-void i2c_ds3231_set_alarm_2(I2C_TypeDef* I2Cx, DS3231_alarm_t alarm){
-	//given alarm settings, set alarm accordingly
-	uint8_t temp[3];
-
-	temp[0] = (alarm.AMx[1] << 7) | ((alarm.minutes / 10) << 4 ) | alarm.minutes % 10;
-	if(alarm.is_ampm_time){
-		temp[1] = (alarm.AMx[2] << 7) | (alarm.is_ampm_time << 6) | (alarm.am_pm << 5) | ((alarm.hours / 10) << 4 ) | alarm.hours % 10;
-	}else{
-		temp[1] = (alarm.AMx[2] << 7) | (alarm.is_ampm_time << 6) | ((alarm.hours / 10) << 4 ) | alarm.hours % 10;
-	}
-
-	if(alarm.day_or_date){
-		temp[2] = (alarm.AMx[3] << 7) | (alarm.day_or_date << 6) | alarm.day;
-	}else{
-		temp[2] = (alarm.AMx[3] << 7) | (alarm.day_or_date << 6) | ((alarm.date / 10) << 4 ) | alarm.date % 10;
-	}
-
-	i2c_ds3231_write_registers(I2Cx, DS3231_ALARM_2_MINUTES_REG, temp, 3);
-}
-
-uint8_t i2c_ds3231_check_alarm_1(I2C_TypeDef* I2Cx){
-	uint8_t temp;
-	i2c_ds3231_read_register(I2Cx, DS3231_CONTROL_STATUS_REG, &temp);
-
-	if ((temp & DS3231_CONTROL_STATUS_ALARM_1_FLAG) > 0){
-		//clear flag
-		temp = temp & ~DS3231_CONTROL_STATUS_ALARM_1_FLAG; //check this
-		i2c_ds3231_write_reg(I2Cx, DS3231_CONTROL_STATUS_REG,temp);
-
-		return 1;
-	}
-	return 0;
-}
-uint8_t i2c_ds3231_check_alarm_2(I2C_TypeDef* I2Cx){
-	uint8_t temp;
-	i2c_ds3231_read_register(I2Cx, DS3231_CONTROL_STATUS_REG, &temp);
-
-	if ((temp & DS3231_CONTROL_STATUS_ALARM_2_FLAG) > 0){
-		//clear flag
-		temp = temp & ~DS3231_CONTROL_STATUS_ALARM_2_FLAG; //check this
-		i2c_ds3231_write_reg(I2Cx, DS3231_CONTROL_STATUS_REG,temp);
-
-		return 1;
-	}
-	return 0;
-}
-
 uint8_t i2c_ds3231_test_rtc(I2C_TypeDef* I2Cx){
 	DS3231_time_t time1, time2;
 	DS3231_date_t date1, date2;
@@ -481,7 +545,7 @@ uint8_t i2c_ds3231_test_rtc(I2C_TypeDef* I2Cx){
 	//Test Alarm 1 and 2
 	{
 		{ //Test once a second alarm 1
-			DS3231_alarm_t alarm1;
+			DS3231_alarm_t alarm1, alarm1v;
 			uint8_t alarm1_state[2];
 
 			time1.seconds = 0;
@@ -499,7 +563,7 @@ uint8_t i2c_ds3231_test_rtc(I2C_TypeDef* I2Cx){
 			alarm1.hours = time1.hours;
 			alarm1.am_pm = time1.am_pm;
 			alarm1.is_ampm_time = time1.is_ampm_time;
-			alarm1.day = date1.day;
+			alarm1.day = 0;
 			alarm1.date = date1.date;
 			alarm1.AMx[0] = 1; alarm1.AMx[1] = 1;alarm1.AMx[2] = 1;alarm1.AMx[3] = 1;
 			alarm1.day_or_date = DS3231_ALARM_DATE;
@@ -508,6 +572,7 @@ uint8_t i2c_ds3231_test_rtc(I2C_TypeDef* I2Cx){
 
 			i2c_ds3231_set_alarm_1(I2Cx, alarm1);
 			i2c_ds3231_check_alarm_1(I2Cx); //clear any existing alarm states
+			i2c_ds3231_read_alarm_1(I2Cx, &alarm1v);
 			//wait and check
 			delayms(800);
 			alarm1_state[0] = i2c_ds3231_check_alarm_1(I2Cx);
@@ -516,6 +581,32 @@ uint8_t i2c_ds3231_test_rtc(I2C_TypeDef* I2Cx){
 			if(alarm1_state[0] != 0){
 				result++;
 			}if (alarm1_state[1] != 1){
+				result++;
+			}
+			//check that we can readback the alarm in full detail.
+			if (alarm1.seconds != alarm1v.seconds){
+				result++;
+			}if (alarm1.minutes != alarm1v.minutes){
+				result++;
+			}if (alarm1.hours != alarm1v.hours){
+				result++;
+			}if (alarm1.am_pm != alarm1v.am_pm){
+				result++;
+			}if (alarm1.is_ampm_time != alarm1v.is_ampm_time){
+				result++;
+			}if (alarm1.day != alarm1v.day){
+				result++;
+			}if (alarm1.date != alarm1v.date){
+				result++;
+			}if (alarm1.AMx[0] != alarm1v.AMx[0]){
+				result++;
+			}if (alarm1.AMx[1] != alarm1v.AMx[1]){
+				result++;
+			}if (alarm1.AMx[2] != alarm1v.AMx[2]){
+				result++;
+			}if (alarm1.AMx[3] != alarm1v.AMx[3]){
+				result++;
+			}if (alarm1.day_or_date != alarm1v.day_or_date){
 				result++;
 			}
 			if (result > 0)
@@ -764,7 +855,7 @@ uint8_t i2c_ds3231_test_rtc(I2C_TypeDef* I2Cx){
 
 
 		{ //Test once a minute alarm 2
-			DS3231_alarm_t alarm2;
+			DS3231_alarm_t alarm2, alarm2v;
 			uint8_t alarm2_state[2];
 
 			time1.seconds = 59;
@@ -781,7 +872,7 @@ uint8_t i2c_ds3231_test_rtc(I2C_TypeDef* I2Cx){
 			alarm2.hours = time1.hours;
 			alarm2.am_pm = time1.am_pm;
 			alarm2.is_ampm_time = time1.is_ampm_time;
-			alarm2.day = date1.day;
+			alarm2.day = 0;
 			alarm2.date = date1.date;
 			alarm2.AMx[1] = 1;alarm2.AMx[2] = 1;alarm2.AMx[3] = 1;
 			alarm2.day_or_date = DS3231_ALARM_DATE;
@@ -790,6 +881,7 @@ uint8_t i2c_ds3231_test_rtc(I2C_TypeDef* I2Cx){
 
 			i2c_ds3231_set_alarm_2(I2Cx, alarm2);
 			i2c_ds3231_check_alarm_2(I2Cx); //clear any existing alarm states
+			i2c_ds3231_read_alarm_2(I2Cx, &alarm2v);
 
 			//wait and check
 			delayms(800);
@@ -799,6 +891,28 @@ uint8_t i2c_ds3231_test_rtc(I2C_TypeDef* I2Cx){
 			if(alarm2_state[0] != 0){
 				result++;
 			}if (alarm2_state[1] != 1){
+				result++;
+			}
+			//check that we can readback the alarm in full detail.
+			if (alarm2.minutes != alarm2v.minutes){
+				result++;
+			}if (alarm2.hours != alarm2v.hours){
+				result++;
+			}if (alarm2.am_pm != alarm2v.am_pm){
+				result++;
+			}if (alarm2.is_ampm_time != alarm2v.is_ampm_time){
+				result++;
+			}if (alarm2.day != alarm2v.day){
+				result++;
+			}if (alarm2.date != alarm2v.date){
+				result++;
+			}if (alarm2.AMx[1] != alarm2v.AMx[1]){
+				result++;
+			}if (alarm2.AMx[2] != alarm2v.AMx[2]){
+				result++;
+			}if (alarm2.AMx[3] != alarm2v.AMx[3]){
+				result++;
+			}if (alarm2.day_or_date != alarm2v.day_or_date){
 				result++;
 			}
 			if (result > 0)

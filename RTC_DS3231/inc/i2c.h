@@ -118,7 +118,9 @@ void i2c_ds3231_set_time_date(I2C_TypeDef* I2Cx, DS3231_time_t time, DS3231_date
 void i2c_ds3231_read_time_date(I2C_TypeDef* I2Cx, DS3231_time_t * time, DS3231_date_t * date);
 float i2c_ds3231_read_temperature(I2C_TypeDef* I2Cx);
 void i2c_ds3231_set_alarm_1(I2C_TypeDef* I2Cx, DS3231_alarm_t alarm);
+void i2c_ds3231_read_alarm_1(I2C_TypeDef* I2Cx, DS3231_alarm_t * alarm);
 void i2c_ds3231_set_alarm_2(I2C_TypeDef* I2Cx, DS3231_alarm_t alarm);
+void i2c_ds3231_read_alarm_2(I2C_TypeDef* I2Cx, DS3231_alarm_t * alarm);
 uint8_t i2c_ds3231_check_alarm_1(I2C_TypeDef* I2Cx);
 uint8_t i2c_ds3231_check_alarm_2(I2C_TypeDef* I2Cx);
 uint8_t i2c_ds3231_test_rtc(I2C_TypeDef* I2Cx);

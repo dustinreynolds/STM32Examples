@@ -38,7 +38,6 @@ int main(void)
 		uint8_t i;
 		int result;
 
-		//response = onewire_OW3_sendReset();
 		response[0] = onewire_sendResetBasic(OWx);
 
 		sprintf(buffer,"%d Received a %d\r\n", i++, response[0]);
@@ -55,10 +54,6 @@ int main(void)
 			result = OWNext(OWx);
 			j++;
 		}
-		//Trigger temperature conversion for each one
-		//onewire_read_temp(OWx, OW3_Temp[0]);
-		//onewire_read_temp(OWx, OW3_Temp[1]);
-		//delayms(500);
 
 		onewire_trigger_temp(OWx);
 		for (i = 0; i < j; i++){

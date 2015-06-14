@@ -41,6 +41,7 @@ int main(void)
 	uint8_t data[20];
 	uint8_t i;
 	USART_TypeDef * USARTx = USART2;
+	uint8_t response_invalid = 0;
 	init_HSI();
 
 	init_RCC_Configuration();
@@ -59,16 +60,35 @@ int main(void)
 	uart_OutString(USARTx,"Welcome to Nucleo L152RE\r\n");
 	uart_OutString(USARTx," Example for interfacing with a DS3231 RTC\r\n");
 
+	//check if device is present
+	while(1){
+		float temperature;
+		i2c_ds3231_reset();
+
+		response_invalid = i2c_ds3231_read_temperature(I2C2,&temperature);
+		if (response_invalid == 0){
+			char buffer[30];
+			sprintf(buffer, "DS3231 Present, current temperature %f,", temperature);
+			uart_OutString(USARTx, buffer);
+			break;
+		}
+		delayms(1000);
+	}
+
 	{
 		uint8_t control;
-		i2c_ds3231_write_reg(I2C2,DS3231_CONTROL_REG, DS3231_CONTROL_RS2 | DS3231_CONTROL_RS1 | DS3231_CONTROL_INTCN);
-		i2c_ds3231_read_register(I2C2,DS3231_CONTROL_REG, &control);
+		response_invalid += i2c_ds3231_write_reg(I2C2,DS3231_CONTROL_REG, DS3231_CONTROL_RS2 | DS3231_CONTROL_RS1 | DS3231_CONTROL_INTCN);
+		response_invalid += i2c_ds3231_read_register(I2C2,DS3231_CONTROL_REG, &control);
 
-		if (control != (DS3231_CONTROL_RS2 | DS3231_CONTROL_RS1 | DS3231_CONTROL_INTCN)){
+		if (response_invalid){
+			//device not present or timed out
+			uart_OutString(USARTx,"DS3231 Not Present!\r\n");
+		}else if (control != (DS3231_CONTROL_RS2 | DS3231_CONTROL_RS1 | DS3231_CONTROL_INTCN)){
 			uart_OutString(USARTx,"DS3231 Configured incorrectly!\r\n");
 		}else{
 			uart_OutString(USARTx,"DS3231 Present\r\n");
 		}
+
 	}
 
 	if (i2c_ds3231_test_rtc(I2C2) == 0){
@@ -87,14 +107,28 @@ int main(void)
 		i2c_ds3231_set_time_date(I2C2, time1, date1);
 	}else{
 		uart_OutString(USARTx,"DS3231 RTC NOT functioning as expected.\r\n");
-		i2c_ds3231_test_rtc(I2C2);
 	}
 
 
 
 	while(1){
-		i2c_ds3231_read_registers(I2C2,0x00, data, 19);
+		response_invalid = i2c_ds3231_read_registers(I2C2,0x00, data, 19);
 
+		if (response_invalid){
+			while(1){
+				float temperature;
+				i2c_ds3231_reset();
+
+				response_invalid = i2c_ds3231_read_temperature(I2C2,&temperature);
+				if (response_invalid == 0){
+					char buffer[30];
+					sprintf(buffer, "DS3231 Present, current temperature %f,", temperature);
+					uart_OutString(USARTx, buffer);
+					break;
+				}
+				delayms(1000);
+			}
+		}
 		for (i = 0; i < 19; i++){
 			char buffer[30];
 			sprintf(buffer, "%02x:%02x,", i, data[i]);

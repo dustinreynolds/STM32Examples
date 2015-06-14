@@ -40,7 +40,7 @@
 #define ACK	1
 #define NACK 2
 
-
+#define DS3231_TIMEOUT			1000 //number of iterations to attempt
 #define DS3231_SECONDS_REG		0x00 //Seconds register
 #define DS3231_MINUTES_REG		0x01
 #define DS3231_HOUR_REG			0x02 //Hour, AM/PM, 12/24
@@ -110,17 +110,17 @@ typedef struct {
 
 
 void i2c_init(void);
-void i2c_ds3231_init(I2C_TypeDef* I2Cx);
-void i2c_ds3231_write_reg(I2C_TypeDef* I2Cx, uint8_t address, uint8_t value);
-void i2c_ds3231_read_register(I2C_TypeDef* I2Cx, uint8_t address, uint8_t * value);
-void i2c_ds3231_read_registers(I2C_TypeDef* I2Cx, uint8_t address, uint8_t * data, uint8_t count);
-void i2c_ds3231_set_time_date(I2C_TypeDef* I2Cx, DS3231_time_t time, DS3231_date_t date);
-void i2c_ds3231_read_time_date(I2C_TypeDef* I2Cx, DS3231_time_t * time, DS3231_date_t * date);
-float i2c_ds3231_read_temperature(I2C_TypeDef* I2Cx);
-void i2c_ds3231_set_alarm_1(I2C_TypeDef* I2Cx, DS3231_alarm_t alarm);
-void i2c_ds3231_read_alarm_1(I2C_TypeDef* I2Cx, DS3231_alarm_t * alarm);
-void i2c_ds3231_set_alarm_2(I2C_TypeDef* I2Cx, DS3231_alarm_t alarm);
-void i2c_ds3231_read_alarm_2(I2C_TypeDef* I2Cx, DS3231_alarm_t * alarm);
+uint8_t i2c_ds3231_init(I2C_TypeDef* I2Cx);
+uint8_t i2c_ds3231_write_reg(I2C_TypeDef* I2Cx, uint8_t address, uint8_t value);
+uint8_t i2c_ds3231_read_register(I2C_TypeDef* I2Cx, uint8_t address, uint8_t * value);
+uint8_t i2c_ds3231_read_registers(I2C_TypeDef* I2Cx, uint8_t address, uint8_t * data, uint8_t count);
+uint8_t i2c_ds3231_set_time_date(I2C_TypeDef* I2Cx, DS3231_time_t time, DS3231_date_t date);
+uint8_t i2c_ds3231_read_time_date(I2C_TypeDef* I2Cx, DS3231_time_t * time, DS3231_date_t * date);
+uint8_t i2c_ds3231_read_temperature(I2C_TypeDef* I2Cx, float * temperature);
+uint8_t i2c_ds3231_set_alarm_1(I2C_TypeDef* I2Cx, DS3231_alarm_t alarm);
+uint8_t i2c_ds3231_read_alarm_1(I2C_TypeDef* I2Cx, DS3231_alarm_t * alarm);
+uint8_t i2c_ds3231_set_alarm_2(I2C_TypeDef* I2Cx, DS3231_alarm_t alarm);
+uint8_t i2c_ds3231_read_alarm_2(I2C_TypeDef* I2Cx, DS3231_alarm_t * alarm);
 uint8_t i2c_ds3231_check_alarm_1(I2C_TypeDef* I2Cx);
 uint8_t i2c_ds3231_check_alarm_2(I2C_TypeDef* I2Cx);
 uint8_t i2c_ds3231_test_rtc(I2C_TypeDef* I2Cx);

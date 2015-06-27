@@ -2,10 +2,36 @@
  * sx1231h.h
  *  The RFM69HW uses a Semtech SX1231H module but handles all of the RF board layout
  *
- *  This driver has been ported from the API Source Code provided by Semtech under no license.
- *  http://www.semtech.com/wireless-rf/rf-transceivers/sx1231h/
  *  Created on: May 13, 2015
  *      Author: Dustin
+ *
+ * Copyright (c) 2015, Dustin Reynolds
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * * Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ *
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ *
+ * * Neither the name of [project] nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #ifndef SX1231H_H_
@@ -22,7 +48,8 @@
 *******************************************************************/
 #define RF_BUFFER_SIZE_MAX   66  // Set to FIFO size in this API implementation but SX1231's packet mode itself allows up to infinite payload length
 #define RF_BUFFER_SIZE       66  //
-
+#define RF_TIMEOUT_WAIT      3000 //3000ms
+#define RF_TIMEOUT_RX_WAIT	 10000
 /*******************************************************************
 ** RF State machine                                               **
 *******************************************************************/
@@ -55,6 +82,12 @@
 #define RF_SYNTHESIZER                   0x08
 #define RF_TRANSMITTER                   0x0C
 #define RF_RECEIVER                      0x10
+#define RF_LISTEN						 0x40
+#define RF_LISTEN_THEN_TX				 0x4C
+#define RF_LISTEN_THEN_RX				 0x50
+#define RF_LISTEN_THEN_SLEEP			 0x40
+#define RF_LISTEN_THEN_STANDBY			 0x44
+#define RF_ABORT_LISTEN_SLEEP			 0x20
 
 /*******************************************************************
 ** SX1231 Internal registers Address                              **
@@ -134,16 +167,20 @@
 #define REG_AESKEY7						     0x44
 #define REG_AESKEY8						     0x45
 #define REG_AESKEY9						     0x46
-#define REG_AESKEY10					        0x47
-#define REG_AESKEY11					        0x48
-#define REG_AESKEY12					        0x49
-#define REG_AESKEY13					        0x4A
-#define REG_AESKEY14					        0x4B
-#define REG_AESKEY15					        0x4C
-#define REG_AESKEY16					        0x4D
+#define REG_AESKEY10					     0x47
+#define REG_AESKEY11					     0x48
+#define REG_AESKEY12					     0x49
+#define REG_AESKEY13					     0x4A
+#define REG_AESKEY14					     0x4B
+#define REG_AESKEY15					     0x4C
+#define REG_AESKEY16					     0x4D
 
 #define REG_TEMP1				  	           0x4E
 #define REG_TEMP2					           0x4F
+
+#define REG_TESTLNA							0x58
+#define REG_TESTPA1							0x5A
+#define REG_TESTPA2							0x5C
 
 
 /*******************************************************************
@@ -160,7 +197,7 @@
 #define DEF_FRFMID                       0x00
 #define DEF_FRFLSB                       0x00
 #define DEF_OSC1                         0x01
-#define DEF_OSC2                         0x40 // Reserved
+#define DEF_AFCCTRL                      0x00
 #define DEF_LOWBAT                       0x00
 #define DEF_LISTEN1                      0x00
 #define DEF_LISTEN2                      0x00
@@ -285,20 +322,24 @@
 #define RF_BITRATELSB_19200                         0x83
 #define RF_BITRATEMSB_38400                         0x03
 #define RF_BITRATELSB_38400                         0x41
-#define RF_BITRATEMSB_76800                         0x01
-#define RF_BITRATELSB_76800                         0xA1
-#define RF_BITRATEMSB_153600                        0x00
-#define RF_BITRATELSB_153600                        0xD0
 #define RF_BITRATEMSB_57600                         0x02
 #define RF_BITRATELSB_57600                         0x2C
+#define RF_BITRATEMSB_76800                         0x01
+#define RF_BITRATELSB_76800                         0xA1
 #define RF_BITRATEMSB_115200                        0x01
 #define RF_BITRATELSB_115200                        0x16
+#define RF_BITRATEMSB_153600                        0x00
+#define RF_BITRATELSB_153600                        0xD0
 #define RF_BITRATEMSB_12500                         0x0A
 #define RF_BITRATELSB_12500                         0x00
 #define RF_BITRATEMSB_25000                         0x05
 #define RF_BITRATELSB_25000                         0x00
+#define RF_BITRATEMSB_32768                         0x03
+#define RF_BITRATELSB_32768                         0xD1
 #define RF_BITRATEMSB_50000                         0x02
 #define RF_BITRATELSB_50000                         0x80
+#define RF_BITRATEMSB_55555							0x02
+#define RF_BITRATELSB_55555							0x40
 #define RF_BITRATEMSB_100000                        0x01
 #define RF_BITRATELSB_100000                        0x40
 #define RF_BITRATEMSB_150000                        0x00
@@ -309,8 +350,8 @@
 #define RF_BITRATELSB_250000                        0x80
 #define RF_BITRATEMSB_300000                        0x00
 #define RF_BITRATELSB_300000                        0x6B
-#define RF_BITRATEMSB_32768                         0x03
-#define RF_BITRATELSB_32768                         0xD1
+
+
 
 // RegFdev (Hz)
 #define RF_FDEVMSB_2000                             0x00
@@ -531,8 +572,9 @@
 #define RF_OSC1_RCCAL_DONE       						    0x40
 
 
-// RegOsc2 (Reserved)
-
+// RegAfcCtrl
+#define RF_AFC_CTRL_STANDARD						0x00
+#define RF_AFC_CTRL_IMPROVED						0x20
 
 // RegLowBat
 
@@ -556,6 +598,15 @@
 #define RF_LISTEN1_RESOL_4100                       0xA0  // Default
 #define RF_LISTEN1_RESOL_262000                     0xF0
 
+#define RF_LISTEN1_RESOLIDLE_64                     0x40
+#define RF_LISTEN1_RESOLIDLE_4100                   0x80  // Default
+#define RF_LISTEN1_RESOLIDLE_262000                 0xC0
+
+#define RF_LISTEN1_RESOLRX_64                       0x10
+#define RF_LISTEN1_RESOLRX_4100                     0x20  // Default
+#define RF_LISTEN1_RESOLRX_262000                   0x30
+
+
 #define RF_LISTEN1_CRITERIA_RSSI                    0x00  // Default
 #define RF_LISTEN1_CRITERIA_RSSIANDSYNC             0x08
 
@@ -563,6 +614,9 @@
 #define RF_LISTEN1_END_01                           0x02  // Default
 #define RF_LISTEN1_END_10                           0x04
 
+#define RF_LISTEN1_END_SWITCH_TO_RX					0x00
+#define RF_LISTEN1_END_SWITCH_TO_MODE				0x02
+#define RF_LISTEN1_END_STAY_LISTEN					0x04
 
 // RegListen2
 #define RF_LISTEN2_COEFIDLE_VALUE                   0xF5 // Default
@@ -573,7 +627,7 @@
 
 
 // RegVersion (Read Only)
-
+#define RF_CHIP_ID									0x24
 
 // RegPaLevel
 #define RF_PALEVEL_PA0_ON                           0x80  // Default
@@ -618,6 +672,11 @@
 #define RF_PALEVEL_OUTPUTPOWER_11110                0x1E
 #define RF_PALEVEL_OUTPUTPOWER_11111                0x1F  // Default
 
+// Minimum dBm that can be used to change an actual power level into a zero based number
+#define RF_PALEVEL_PA0_OFFSET						18
+#define RF_PALEVEL_PA1_OFFSET						18
+#define RF_PALEVEL_PA1_PA2_OFFSET					14
+#define RF_PALEVEL_PA1_PA2_HIGH_OFFSET				11
 
 // RegPaRamp
 #define RF_PARAMP_3400                              0x00
@@ -661,7 +720,7 @@
 
 
 // RegAgcRef
-#define RF_AGCREF_AUTO_ON     						    0x40  // Default
+#define RF_AGCREF_AUTO_ON     					  	 0x40  // Default
 #define RF_AGCREF_AUTO_OFF 	      					 0x00
 
 #define RF_AGCREF_LEVEL_MINUS80                     0x00  // Default
@@ -778,11 +837,11 @@
 #define RF_AGCTHRESH2_STEP2_0                       0x00
 #define RF_AGCTHRESH2_STEP2_1                       0x10
 #define RF_AGCTHRESH2_STEP2_2                       0x20
-#define RF_AGCTHRESH2_STEP2_3                       0x30  // Default
+#define RF_AGCTHRESH2_STEP2_3                       0x30
 #define RF_AGCTHRESH2_STEP2_4                       0x40
 #define RF_AGCTHRESH2_STEP2_5                       0x50
 #define RF_AGCTHRESH2_STEP2_6                       0x60
-#define RF_AGCTHRESH2_STEP2_7                       0x70
+#define RF_AGCTHRESH2_STEP2_7                       0x70 // Default
 #define RF_AGCTHRESH2_STEP2_8                       0x80
 #define RF_AGCTHRESH2_STEP2_9                       0x90
 #define RF_AGCTHRESH2_STEP2_10                      0xA0
@@ -1137,6 +1196,8 @@
 #define RF_PACKET1_ADRSFILTERING_NODE               0x02
 #define RF_PACKET1_ADRSFILTERING_NODEBROADCAST      0x04
 
+#define NO_ADDRESS									0x00
+
 
 // RegPayloadLength
 #define RF_PAYLOADLENGTH_VALUE                      0x40  // Default
@@ -1235,6 +1296,20 @@
 
 // RegTemp2 (Read Only)
 
+// RegTestLNA
+#define RF_RX_SENSITIVITY_BOOST_ON							0x2D
+#define RF_RX_SENSITIVITY_BOOST_OFF							0x1B
+
+// RegTestPa1
+#define RF_TESTPA1_20DBM_OFF								0x55
+#define RF_TESTPA1_20DBM_ON									0x5D
+
+// RegTestPa2
+#define RF_TESTPA2_20DBM_OFF								0x70
+#define RF_TESTPA2_20DBM_ON									0x7C
+
+
+
 /*******************************************************************
 **                                                                **
 **                     // RF_BUFFER_SIZE * 8 *     (4  + 1)          \          \
@@ -1247,7 +1322,9 @@
 #define RF_FRAME_TIMEOUT(BitRate) (uint16_t)(double)((((double)((uint32_t)RF_BUFFER_SIZE * (uint32_t)8 *((uint32_t)4  + (uint32_t)1)) / (double)((uint32_t)4 * (uint32_t)BitRate)) * (double)128) + (double)1)
 
 
-void sx1231h_init(void);
-uint8_t sx1231h_present(SPI_TypeDef* SPIx);
-
+uint8_t sx1231h_init(uint8_t spi_device_num);
+uint8_t sx1231h_present(uint8_t spi_device_num);
+void sx1231h_dump_select_regs(void);
+uint8_t sx1231h_find_lowest_settings(uint8_t dev1, uint8_t dev2);
+uint8_t sx1231h_wirelessTesting(uint8_t dev1, uint8_t dev2);
 #endif /* SX1231H_H_ */

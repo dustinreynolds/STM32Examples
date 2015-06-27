@@ -3,11 +3,40 @@
  *
  *  Created on: May 9, 2015
  *      Author: Dustin
+ *
+ * Copyright (c) 2015, Dustin Reynolds
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * * Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ *
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ *
+ * * Neither the name of [project] nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include "stm32l1xx.h"
 #include "spi.h"
 
+static SPI_Device_t spi_devices[3];
 
 uint8_t SPI2ReceivedValue[SPI2_BUFFER_SIZE];
 uint8_t SPI2TransmitValue[SPI2_BUFFER_SIZE];
@@ -72,6 +101,14 @@ void spi_SPI2_Configuration(void){
 	DMA_Init(DMA1_Channel5, &DMA_InitStructure);
 
 	SPI_Cmd(SPI2, ENABLE);
+
+	spi_devices[SPI_FLASH].cs_port = GPIOC;
+	spi_devices[SPI_FLASH].cs_pin = GPIO_Pin_8;
+	spi_devices[SPI_FLASH].SPIx = SPI2;
+
+	spi_devices[SPI_RFM69_1].cs_port = GPIOB;
+	spi_devices[SPI_RFM69_1].cs_pin = GPIO_Pin_12;
+	spi_devices[SPI_RFM69_1].SPIx = SPI2;
 }
 
 void spi_SPI3_Configuration(void){
@@ -91,6 +128,10 @@ void spi_SPI3_Configuration(void){
 	SPI_Init(SPI3, &SPI_InitStruct);
 
 	SPI_Cmd(SPI3, ENABLE);
+
+	spi_devices[SPI_RFM69_2].cs_port = GPIOA;
+	spi_devices[SPI_RFM69_2].cs_pin = GPIO_Pin_15;
+	spi_devices[SPI_RFM69_2].SPIx = SPI3;
 }
 
 uint8_t __inline__ spi_send(SPI_TypeDef* SPIx, uint8_t data){
@@ -102,19 +143,19 @@ uint8_t __inline__ spi_send(SPI_TypeDef* SPIx, uint8_t data){
 	return SPIx->DR;
 }
 
-uint8_t spi_write_register(uint8_t reg_cmd, uint8_t reg_op){
+uint8_t spi_write_register(SPI_TypeDef* SPIx, uint8_t reg_cmd, uint8_t reg_op){
 	uint8_t dummy;
-	SPI2->DR = reg_cmd;
-	while(!(SPI2->SR & SPI_I2S_FLAG_TXE));
-	while(!(SPI2->SR & SPI_I2S_FLAG_RXNE));
-	while(SPI2->SR & SPI_I2S_FLAG_BSY);
+	SPIx->DR = reg_cmd;
+	while(!(SPIx->SR & SPI_I2S_FLAG_TXE));
+	while(!(SPIx->SR & SPI_I2S_FLAG_RXNE));
+	while(SPIx->SR & SPI_I2S_FLAG_BSY);
 
-	dummy = SPI2->DR;
-	SPI2->DR = reg_op;
-	while(!(SPI2->SR & SPI_I2S_FLAG_TXE));
-	while(!(SPI2->SR & SPI_I2S_FLAG_RXNE));
-	while(SPI2->SR & SPI_I2S_FLAG_BSY);
-	return SPI2->DR;
+	dummy = SPIx->DR;
+	SPIx->DR = reg_op;
+	while(!(SPIx->SR & SPI_I2S_FLAG_TXE));
+	while(!(SPIx->SR & SPI_I2S_FLAG_RXNE));
+	while(SPIx->SR & SPI_I2S_FLAG_BSY);
+	return SPIx->DR;
 }
 
 uint8_t spi_read_register(SPI_TypeDef* SPIx, uint8_t reg_cmd){
@@ -130,6 +171,57 @@ uint8_t spi_read_register(SPI_TypeDef* SPIx, uint8_t reg_cmd){
 	while(!(SPIx->SR & SPI_I2S_FLAG_RXNE));
 	while(SPIx->SR & SPI_I2S_FLAG_BSY);
 	return SPIx->DR;
+}
+void spi_cs_activate(SPI_TypeDef* SPIx){
+	if (SPIx == SPI2){
+		GPIOB->BSRRH |= GPIO_Pin_12;
+	} else if (SPIx == SPI3){
+		GPIOA->BSRRH |= GPIO_Pin_15;
+	}
+}
+
+void spi_cs_deactivate(SPI_TypeDef* SPIx){
+	if (SPIx == SPI2){
+		GPIOB->BSRRL |= GPIO_Pin_12;
+	} else if (SPIx == SPI3){
+		GPIOA->BSRRL |= GPIO_Pin_15;
+	}
+}
+
+uint8_t spi_write_register_cs(uint8_t num, uint8_t reg_cmd, uint8_t reg_op){
+	uint8_t dummy;
+	spi_devices[num].cs_port->BSRRH |= spi_devices[num].cs_pin;
+	spi_devices[num].SPIx->DR = reg_cmd;
+	while(!(spi_devices[num].SPIx->SR & SPI_I2S_FLAG_TXE));
+	while(!(spi_devices[num].SPIx->SR & SPI_I2S_FLAG_RXNE));
+	while(spi_devices[num].SPIx->SR & SPI_I2S_FLAG_BSY);
+
+	dummy = spi_devices[num].SPIx->DR;
+	spi_devices[num].SPIx->DR = reg_op;
+	while(!(spi_devices[num].SPIx->SR & SPI_I2S_FLAG_TXE));
+	while(!(spi_devices[num].SPIx->SR & SPI_I2S_FLAG_RXNE));
+	while(spi_devices[num].SPIx->SR & SPI_I2S_FLAG_BSY);
+	dummy = spi_devices[num].SPIx->DR;
+	spi_devices[num].cs_port->BSRRL |= spi_devices[num].cs_pin;
+	return dummy;
+}
+
+uint8_t spi_read_register_cs(uint8_t num, uint8_t reg_cmd){
+	uint8_t dummy = 0x00;
+	spi_devices[num].cs_port->BSRRH |= spi_devices[num].cs_pin;
+	spi_devices[num].SPIx->DR = reg_cmd;
+	while(!(spi_devices[num].SPIx->SR & SPI_I2S_FLAG_TXE));
+	while(!(spi_devices[num].SPIx->SR & SPI_I2S_FLAG_RXNE));
+	while(spi_devices[num].SPIx->SR & SPI_I2S_FLAG_BSY);
+	dummy = spi_devices[num].SPIx->DR;
+
+	spi_devices[num].SPIx->DR = 0x00;
+	while(!(spi_devices[num].SPIx->SR & SPI_I2S_FLAG_TXE));
+	while(!(spi_devices[num].SPIx->SR & SPI_I2S_FLAG_RXNE));
+	while(spi_devices[num].SPIx->SR & SPI_I2S_FLAG_BSY);
+	dummy =  spi_devices[num].SPIx->DR;
+	spi_devices[num].cs_port->BSRRL |= spi_devices[num].cs_pin;
+	return dummy;
 }
 
 uint8_t __inline__ spi_send_buffer(uint32_t size){

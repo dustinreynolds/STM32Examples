@@ -46,10 +46,10 @@
 /*******************************************************************
 ** RF packet definition                                           **
 *******************************************************************/
-#define RF_BUFFER_SIZE_MAX   66  // Set to FIFO size in this API implementation but SX1231's packet mode itself allows up to infinite payload length
-#define RF_BUFFER_SIZE       66  //
-#define RF_TIMEOUT_WAIT      3000 //3000ms
-#define RF_TIMEOUT_RX_WAIT	 10000
+#define RF_BUFFER_SIZE_MAX   		66  // Set to FIFO size in this API implementation but SX1231's packet mode itself allows up to infinite payload length
+#define RF_BUFFER_SIZE       		66  //
+#define RF_TIMEOUT_WAIT      		3000 //3000ms
+#define RF_TIMEOUT_RX_WAIT	 		10000
 /*******************************************************************
 ** RF State machine                                               **
 *******************************************************************/

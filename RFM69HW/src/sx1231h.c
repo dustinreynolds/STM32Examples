@@ -177,11 +177,11 @@ void sx1231h_setRFMode(uint8_t spi_device_num, uint8_t mode){
 		spi_write_register_cs(spi_device_num, REG_OPMODE | 0x80, (RegistersCfg[REG_OPMODE] & 0x83) | RF_LISTEN | RF_SLEEP);
 		while ((spi_read_register_cs(spi_device_num, REG_IRQFLAGS1) & RF_IRQFLAGS1_MODEREADY) == 0x00); // Wait for ModeReady
 	}else if (mode == (RF_LISTEN_THEN_STANDBY)){
-			spi_write_register_cs(spi_device_num, REG_TESTPA1 | 0x80, RF_TESTPA1_20DBM_OFF);
-			spi_write_register_cs(spi_device_num, REG_TESTPA2 | 0x80, RF_TESTPA2_20DBM_OFF);
+		spi_write_register_cs(spi_device_num, REG_TESTPA1 | 0x80, RF_TESTPA1_20DBM_OFF);
+		spi_write_register_cs(spi_device_num, REG_TESTPA2 | 0x80, RF_TESTPA2_20DBM_OFF);
 
-			spi_write_register_cs(spi_device_num, REG_OPMODE | 0x80, (RegistersCfg[REG_OPMODE] & 0x83) | RF_LISTEN | RF_STANDBY);
-			while ((spi_read_register_cs(spi_device_num, REG_IRQFLAGS1) & RF_IRQFLAGS1_MODEREADY) == 0x00); // Wait for ModeReady
+		spi_write_register_cs(spi_device_num, REG_OPMODE | 0x80, (RegistersCfg[REG_OPMODE] & 0x83) | RF_LISTEN | RF_STANDBY);
+		while ((spi_read_register_cs(spi_device_num, REG_IRQFLAGS1) & RF_IRQFLAGS1_MODEREADY) == 0x00); // Wait for ModeReady
 	}else if (mode == RF_ABORT_LISTEN_SLEEP){
 		spi_write_register_cs(spi_device_num, REG_OPMODE | 0x80, (RegistersCfg[REG_OPMODE] & 0x83) | RF_ABORT_LISTEN_SLEEP);
 		spi_write_register_cs(spi_device_num, REG_OPMODE | 0x80, (RegistersCfg[REG_OPMODE] & 0xE3) | RF_SLEEP);
@@ -414,6 +414,7 @@ uint8_t sx1231h_listenFrameStart(uint8_t spi_device_num, uint32_t idleus, uint32
 	uint8_t listen1 = 0;
 	uint8_t listen2 = 0;
 	uint8_t listen3 = 0;
+	return ERROR; //This mode seems a bit broken.
 	//avoid starting RX when packet ready to download
 	if((spi_read_register_cs(spi_device_num, REG_IRQFLAGS2) & RF_IRQFLAGS2_PAYLOADREADY) != 0x00){
 		spi_write_register_cs(spi_device_num, REG_PACKETCONFIG2 | 0x80, (spi_read_register_cs(spi_device_num, REG_IRQFLAGS2) & 0xFB) | RF_PACKET2_RXRESTART);
@@ -462,6 +463,7 @@ uint8_t sx1231h_listenFrameStart(uint8_t spi_device_num, uint32_t idleus, uint32
 uint8_t sx1231h_listenFrameWait(uint8_t spi_device_num, uint8_t *buffer, uint8_t * size, uint8_t mode){
 	uint16_t timeout = RF_TIMEOUT_RX_WAIT;
 	uint8_t i;
+	return ERROR; //This mode seems a bit broken.
 	while (timeout-- > 1){
 		if ((spi_read_register_cs(spi_device_num, REG_OPMODE) & 0x1E) == mode){
 			break;
@@ -492,6 +494,114 @@ uint8_t sx1231h_listenFrameWait(uint8_t spi_device_num, uint8_t *buffer, uint8_t
 	return OK;
 }
 
+//Disabled until logic discovered to get it to work.
+uint8_t sx1231h_receiveLargeFrameStart(uint8_t spi_device_num){
+
+	return ERROR;
+	//avoid starting RX when packet ready to download
+	if((spi_read_register_cs(spi_device_num, REG_IRQFLAGS2) & RF_IRQFLAGS2_PAYLOADREADY) != 0x00){
+		spi_write_register_cs(spi_device_num, REG_PACKETCONFIG2 | 0x80, (spi_read_register_cs(spi_device_num, REG_IRQFLAGS2) & 0xFB) | RF_PACKET2_RXRESTART);
+	}
+
+	spi_write_register_cs(spi_device_num, REG_SYNCCONFIG | 0x80, (RegistersCfg[REG_SYNCCONFIG] & 0xBF) | RF_SYNC_FIFOFILL_AUTO);
+
+	sx1231h_setRFMode(spi_device_num, RF_RECEIVER);
+	return 0;
+}
+
+//Disabled until logic discovered to get it to work.
+uint8_t sx1231h_receiveLargeFramePoll(uint8_t spi_device_num, uint8_t *buffer, uint8_t * size, uint16_t * index){
+	uint16_t timeout = RF_TIMEOUT_RX_WAIT;
+	uint8_t i;
+	uint8_t subIndex = 0;
+	return ERROR;
+	if((spi_read_register_cs(spi_device_num, REG_IRQFLAGS2) & RF_IRQFLAGS2_PAYLOADREADY) != 0x00){
+		sx1231h_setRFMode(spi_device_num, RF_SLEEP);
+		return OK;
+	}
+
+	while((spi_read_register_cs(spi_device_num, REG_IRQFLAGS2) & RF_IRQFLAGS2_FIFONOTEMPTY) != 0x00){
+		if((spi_read_register_cs(spi_device_num, REG_IRQFLAGS2) & RF_IRQFLAGS2_PAYLOADREADY) != 0x00){
+			break;
+		}
+
+		if (*index == 0){
+			*size = spi_read_register_cs(spi_device_num, REG_FIFO);
+		}else{
+			buffer[*index-1] = spi_read_register_cs(spi_device_num, REG_FIFO);
+		}
+		*index += 1;
+	}
+
+	if((spi_read_register_cs(spi_device_num, REG_IRQFLAGS1) & RF_IRQFLAGS1_TIMEOUT) != 0x00){
+		sx1231h_setRFMode(spi_device_num, RF_SLEEP);
+		return RX_TIMEOUT;
+	}
+
+	if(*index > 1 && *size == *index){
+		sx1231h_setRFMode(spi_device_num, RF_SLEEP);
+		return OK;
+	}
+	return RX_RUNNING;
+}
+
+//Disabled until logic discovered to get it to work.
+uint8_t sx1231h_sendLargeFrameStart(uint8_t spi_device_num, uint8_t *buffer, uint8_t size, uint16_t * index){
+	uint8_t subIndex = 0;
+	return ERROR;
+	spi_write_register_cs(spi_device_num, REG_FIFOTHRESH | 0x80, (RegistersCfg[REG_FIFOTHRESH] & 0x7F) | RF_FIFOTHRESH_TXSTART_FIFONOTEMPTY);
+
+	sx1231h_setRFMode(spi_device_num, RF_SLEEP);
+
+	spi_write_register_cs(spi_device_num, REG_FIFO | 0x80, size);
+
+	while((spi_read_register_cs(spi_device_num, REG_IRQFLAGS2) & RF_IRQFLAGS2_FIFOFULL) == 0x00){
+		spi_write_register_cs(spi_device_num, REG_FIFO | 0x80, buffer[*index]);
+		*index += 1;
+		subIndex = 1;
+	}
+
+	if (subIndex){
+		*index -= 1;
+	}
+	sx1231h_setRFMode(spi_device_num, RF_TRANSMITTER);
+	return OK;
+}
+
+//Disabled until logic discovered to get it to work.
+uint8_t sx1231h_sendLargeFramePoll(uint8_t spi_device_num, uint8_t *buffer, uint8_t size, uint16_t * index){
+	return ERROR;
+	if((spi_read_register_cs(spi_device_num, REG_IRQFLAGS2) & RF_IRQFLAGS2_PACKETSENT) != 0x00){
+		sx1231h_setRFMode(spi_device_num, RF_SLEEP);
+		return OK;
+	}
+
+	if (*index > size){
+		//sx1231h_setRFMode(spi_device_num, RF_SLEEP);
+		return OK;
+	}
+
+	if((spi_read_register_cs(spi_device_num, REG_IRQFLAGS2) & RF_IRQFLAGS2_FIFONOTEMPTY) != 0x00){
+		while ((spi_read_register_cs(spi_device_num, REG_IRQFLAGS2) & RF_IRQFLAGS2_FIFOFULL) == 0x00){
+			spi_write_register_cs(spi_device_num, REG_FIFO | 0x80, buffer[*index]);
+
+			if (*index > size){
+				//sx1231h_setRFMode(spi_device_num, RF_SLEEP);
+				return OK;
+			}
+			*index += 1;
+			if((spi_read_register_cs(spi_device_num, REG_IRQFLAGS2) & RF_IRQFLAGS2_PACKETSENT) != 0x00){
+				sx1231h_setRFMode(spi_device_num, RF_SLEEP);
+				return OK;
+			}
+		}
+	}
+
+	return TX_RUNNING;
+}
+
+
+//Note: Encryption key stored on RFM69HW is readable, despite the manual indicating that it is write only
 void sx1231h_set_encryption_state(uint8_t spi_device_num, bool aes_state){
 	spi_write_register_cs(spi_device_num, REG_PACKETCONFIG2 | 0x80, (spi_read_register_cs(spi_device_num, REG_PACKETCONFIG2) & 0xFE) | aes_state ? RF_PACKET2_AES_ON : RF_PACKET2_AES_OFF);
 }
@@ -1588,8 +1698,8 @@ uint8_t sx1231h_wirelessTesting(uint8_t dev1, uint8_t dev2){
 		uart_OutString((char *)sendBuff);
 	}
 
-	//listen
-	{
+	//listen - Disabled until it is improved.
+	/*{
 		uint8_t sendBuff[70], receiveBuff[60];
 		uint8_t sendSize, receiveSize;
 		uint8_t result;
@@ -1655,8 +1765,7 @@ uint8_t sx1231h_wirelessTesting(uint8_t dev1, uint8_t dev2){
 		}
 		sprintf((char *)sendBuff, "LIS1 Listen mode successful\r\n");
 		uart_OutString((char *)sendBuff);
-
-	}
+	} */
 
 	//RX Timeout
 	{
@@ -1797,6 +1906,85 @@ uint8_t sx1231h_wirelessTesting(uint8_t dev1, uint8_t dev2){
 		sprintf((char *)sendBuff, "TIM2 Timeout RX mode successful\r\n");
 		uart_OutString((char *)sendBuff);
 	}
+
+	//Test TX and RX Large Frame
+	//Disabled until the logic improves to become working.//Disabled until logic discovered to get it to work.
+	/*{
+		uint8_t sendBuff[260], receiveBuff[260];
+		uint8_t sendSize, receiveSize;
+		uint8_t result;
+		uint8_t i;
+		uint16_t txIndex, rxIndex;
+		uint16_t timeout = RF_TIMEOUT_RX_WAIT*6;
+
+		result = sx1231h_init(dev1);
+		if (result == ERROR){
+			uart_OutString("LRG1 test failed Device 1 not detected\r\n");
+			sx1231h_dump_select_regs();
+			return ERROR;
+		}
+		result = sx1231h_init(dev2);
+		if (result == ERROR){
+			uart_OutString("LRG1 test failed Device 2 not detected\r\n");
+			sx1231h_dump_select_regs();
+			return ERROR;
+		}
+		sendSize = 250;
+		for(i = 0; i < sendSize; i++){
+			sendBuff[i] = i;
+		}
+
+		delayms(100);
+
+		txIndex = rxIndex = 0;
+		sx1231h_receiveLargeFrameStart(dev2);
+		result = sx1231h_sendLargeFrameStart(dev1, sendBuff, sendSize, &txIndex);
+		if (result == ERROR){
+			uart_OutString("LRG1 test failed due to timeout for dev1\r\n");
+			sx1231h_dump_select_regs();
+			return ERROR;
+		}
+
+		while (timeout-- > 1){
+			delayus(10);
+			result = sx1231h_receiveLargeFramePoll(dev2, receiveBuff, &receiveSize, &rxIndex);
+			if (result == ERROR){
+				uart_OutString("LRG1 test failed due to timeout.\r\n");
+				sx1231h_dump_select_regs();
+				return ERROR;
+			}
+			if (result == OK){
+				break;
+			}
+			result = sx1231h_sendLargeFramePoll(dev1,sendBuff, sendSize, &txIndex);
+			if (result == ERROR){
+				uart_OutString("LRG1 test failed due to TX timeout.\r\n");
+				sx1231h_dump_select_regs();
+				return ERROR;
+			}
+
+		}
+		if (!timeout){
+			uart_OutString("LRG1 test failed due to timeout.\r\n");
+			sx1231h_dump_select_regs();
+			return ERROR;
+		}
+
+		if (receiveSize != sendSize){
+			uart_OutString("LRG1 test failed RX size diff.\r\n");
+			sx1231h_dump_select_regs();
+			return ERROR;
+		}
+
+		for(i = 0; i < receiveSize; i++){
+			if (sendBuff[i] != receiveBuff[i]){
+				uart_OutString("LRG1 test failed corrupted bytes in payload\r\n");
+				sx1231h_dump_select_regs();
+				return ERROR;
+			}
+		}
+	}*/
+
 
 	//sx1231h_find_lowest_settings(dev1, dev2);
 

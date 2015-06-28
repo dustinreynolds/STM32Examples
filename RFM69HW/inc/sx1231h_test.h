@@ -1,7 +1,7 @@
 /*
- * main.c
+ * sx1231h_test.h
  *
- *  Created on: Mar 21, 2015
+ *  Created on: Jun 27, 2015
  *      Author: Dustin
  *
  * Copyright (c) 2015, Dustin Reynolds
@@ -32,76 +32,42 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#include "stm32l1xx.h"
-#include "stdio.h"
-#include "init.h"
-#include "uart.h"
-#include "spi.h"
-#include "flash.h"
-#include "sx1231h.h"
-#include "sx1231h_test.h"
 
+#ifndef SX1231H_TEST_H_
+#define SX1231H_TEST_H_
 
-int main(void)
-{
-	uint8_t result = 0;
-	init_HSI();
+#define PRINT_CRLF 	1
+#define OMIT_CRLF	0
 
-	init_RCC_Configuration();
+typedef enum {
+	TEST_STRINGS_TEST_PRESENCE = 0,
+	TEST_STRINGS_BASIC_RX_TX,
+	TEST_STRINGS_DIFF_SYNC,
+	TEST_STRINGS_AES_ON,
+	TEST_STRINGS_AES_DIFF,
+	TEST_STRINGS_NODE_ADDRESS,
+	TEST_STRINGS_BROADCAST_ADDRESS,
+	TEST_STRINGS_NODE_WRONG_ADDRESS,
+	TEST_STRINGS_BROADCAST_NOT_ENABLED,
+	TEST_STRINGS_RSSI_THRESHOLD,
+	TEST_STRINGS_FREQ_HOP,
+	TEST_STRINGS_FREQ_HOP_FAILURE,
+	TEST_STRINGS_RX_TIMEOUT_HIGH,
+	TEST_STRINGS_RX_TIMEOUT_FAILURE,
+	TEST_STRINGS_VOID, //Be sure to add new tests to sx1231h_test and sx1231_test_identifier
+} test_strings_t;
 
-	init_GPIO_Configuration();
+typedef struct {
+	test_strings_t testIdentifier;
+	uint8_t (*function)(test_strings_t ,uint8_t, uint8_t);
+} pTable_t;
 
-	init_TIM2_Configuration();
+uint8_t sx1231h_test_presence(test_strings_t identifier, uint8_t dev1, uint8_t dev2);
+uint8_t sx1231h_test_single_change(test_strings_t identifier, uint8_t dev1, uint8_t dev2);
+uint8_t sx1231h_test_failure(test_strings_t identifier, uint8_t dev1, uint8_t dev2);
+uint8_t sx1231h_test_rssi(test_strings_t identifier, uint8_t dev1, uint8_t dev2);
+uint8_t sx1231h_test_freq_hop(test_strings_t identifier, uint8_t dev1, uint8_t dev2);
+uint8_t sx1231h_find_lowest_settings(uint8_t dev1, uint8_t dev2);
+uint8_t sx1231h_wirelessTesting(uint8_t dev1, uint8_t dev2);
 
-	spi_SPI2_Configuration();
-	spi_SPI3_Configuration();
-
-	delayms(5000);
-
-	flash_enable_write(0);
-
-	uart_Configuration(UART_POLLING);
-
-	uart_OutString("SPI RFM69HW Example Utilizing HSI Clock\r\n");
-
-	if(sx1231h_present(SPI_RFM69_2) == 0){
-		uart_OutString("SPI RFM69HW/SX1231H Failed\r\n");
-	}else{
-		uart_OutString("SPI RFM69HW/SX1231H Passed\r\n");
-
-		//uart_OutString("SX1231H Configuration Before Changes\r\n");
-		//sx1231h_dump_reg(SPI_RFM69_2);
-		//sx1231h_init(SPI_RFM69_2);
-		//delayms(100);
-		//uart_OutString("SX1231H Configuration After Changes\r\n");
-		//sx1231h_dump_reg(SPI_RFM69_2);
-		//sx1231h_dump_select_regs();
-	}
-
-	if (flash_present()){
-		//result = flash_stress_test();
-
-		if (result == 0){
-			uart_OutString("SPI Stress Test Failed\r\n");
-		}else{
-			uart_OutString("SPI Stress Test Passed\r\n");
-		}
-	}
-
-	while(1){
-
-		if (flash_present() == 0){
-			uart_OutString("SPI Flash Failed\r\n");
-		}else{
-			//uart_OutString("SPI Flash Passed\r\n");
-		}
-		if(sx1231h_present(SPI_RFM69_1) == 0){
-			uart_OutString("SPI RFM69HW/SX1231H Failed\r\n");
-		}else{
-			//uart_OutString("SPI RFM69HW/SX1231H Passed\r\n");
-			sx1231h_test_wirelessTesting(SPI_RFM69_1, SPI_RFM69_2);
-		}
-		delayms(100);
-	}
-
-}
+#endif /* SX1231H_TEST_H_ */

@@ -1325,6 +1325,18 @@
 uint8_t sx1231h_init(uint8_t spi_device_num);
 uint8_t sx1231h_present(uint8_t spi_device_num);
 void sx1231h_dump_select_regs(void);
-uint8_t sx1231h_find_lowest_settings(uint8_t dev1, uint8_t dev2);
-uint8_t sx1231h_wirelessTesting(uint8_t dev1, uint8_t dev2);
+void sx1231h_set_encryption_state(uint8_t spi_device_num, bool aes_state);
+void sx1231h_set_encryption_key(uint8_t spi_device_num, uint8_t * aes_key);
+int8_t sx1231h_read_rssi(uint8_t spi_device_num, bool trigger);
+void sx1231h_change_frequency(uint8_t spi_device_num, uint16_t freq);
+void sx1231h_set_timeout(uint8_t spi_device_num, uint8_t rxTimeout, uint8_t rssiTimeout);
+void sx1231h_set_addr_filtering(uint8_t spi_device_num, uint8_t state, uint8_t thisAddress, uint8_t broadcastAddress);
+void sx1231h_set_baudrate(uint8_t spi_device_num, uint32_t baud);
+void sx1231h_set_encryption_key(uint8_t spi_device_num, uint8_t * aes_key);
+void sx1231h_set_freq_dev(uint8_t spi_device_num, uint32_t freq );
+void sx1231h_set_power(uint8_t spi_device_num, int8_t power_level);
+uint8_t sx1231h_receiveFrameStart(uint8_t spi_device_num);
+uint8_t sx1231h_receiveFrameWait(uint8_t spi_device_num, uint8_t *buffer, uint8_t * size);
+uint8_t sx1231h_sendFrameStart(uint8_t spi_device_num, uint8_t *buffer, uint8_t size);
+uint8_t sx1231h_sendFrameWait(uint8_t spi_device_num);
 #endif /* SX1231H_H_ */

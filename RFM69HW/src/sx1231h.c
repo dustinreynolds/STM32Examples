@@ -42,7 +42,6 @@
 #include "uart.h"
 #include "init.h"
 
-
 /*******************************************************************
  ** Global variables                                               **
  *******************************************************************/
@@ -135,7 +134,6 @@ const uint16_t RegistersCfg[] = { // SX1231 configuration registers values
 		DEF_TEMP1 | RF_TEMP1_ADCLOWPOWER_ON,
 		DEF_TEMP2
 };
-
 
 
 void sx1231h_setRFMode(uint8_t spi_device_num, uint8_t mode){
@@ -294,40 +292,6 @@ uint8_t sx1231h_sendFrameWait(uint8_t spi_device_num){
 	return OK;
 }
 
-
-uint8_t sx1231h_sendFrame(uint8_t spi_device_num, uint8_t *buffer, uint8_t size){
-	uint8_t counter = 0;
-	uint16_t timeout = RF_TIMEOUT_WAIT;
-	if ((size + 1) > RF_BUFFER_SIZE_MAX){
-		return ERROR;
-	}
-
-	spi_write_register_cs(spi_device_num, REG_FIFOTHRESH | 0x80, (RegistersCfg[REG_FIFOTHRESH] & 0x7F) | RF_FIFOTHRESH_TXSTART_FIFONOTEMPTY);
-
-	sx1231h_setRFMode(spi_device_num, RF_SLEEP);
-
-	spi_write_register_cs(spi_device_num, REG_FIFO | 0x80, size);
-
-	for (counter = 0; counter < size; counter++){
-		spi_write_register_cs(spi_device_num, REG_FIFO | 0x80, buffer[counter]);
-	}
-
-	sx1231h_setRFMode(spi_device_num, RF_TRANSMITTER);
-
-	//wait for tx finished
-	while (timeout-- > 1){ // Wait for ModeReady
-		if((spi_read_register_cs(spi_device_num, REG_IRQFLAGS2) & RF_IRQFLAGS2_PACKETSENT) != 0x00){
-			break;
-		}
-	}
-	if (!timeout){
-		sx1231h_setRFMode(spi_device_num, RF_SLEEP);
-		return ERROR;
-	}
-	sx1231h_setRFMode(spi_device_num, RF_SLEEP);
-	return OK;
-}
-
 uint8_t sx1231h_receiveFrameStart(uint8_t spi_device_num){
 	//avoid starting RX when packet ready to download
 	if((spi_read_register_cs(spi_device_num, REG_IRQFLAGS2) & RF_IRQFLAGS2_PAYLOADREADY) != 0x00){
@@ -368,43 +332,6 @@ uint8_t sx1231h_receiveFrameWait(uint8_t spi_device_num, uint8_t *buffer, uint8_
 		*buffer++ = spi_read_register_cs(spi_device_num, REG_FIFO);
 	}
 	return OK;
-}
-
-uint8_t sx1231h_receiveFrame(uint8_t spi_device_num,uint8_t *buffer, uint8_t * size){
-	uint16_t timeout = RF_TIMEOUT_WAIT;
-	uint8_t i;
-
-	//avoid starting RX when packet ready to download
-	if((spi_read_register_cs(spi_device_num, REG_IRQFLAGS2) & RF_IRQFLAGS2_PAYLOADREADY) != 0x00){
-		spi_write_register_cs(spi_device_num, REG_PACKETCONFIG2 | 0x80, (spi_read_register_cs(spi_device_num, REG_IRQFLAGS2) & 0xFB) | RF_PACKET2_RXRESTART);
-	}
-
-	sx1231h_setRFMode(spi_device_num, RF_RECEIVER);
-
-	while (timeout-- > 0){
-		if((spi_read_register_cs(spi_device_num, REG_IRQFLAGS2) & RF_IRQFLAGS2_PAYLOADREADY) != 0x00){
-			break;
-		}
-		if((spi_read_register_cs(spi_device_num, REG_IRQFLAGS1) & RF_IRQFLAGS1_TIMEOUT) != 0x00){
-			sx1231h_setRFMode(spi_device_num, RF_SLEEP);
-			return 1;
-		}
-		delayms(10); //300 x 10ms = 3 sec
-	}
-	if (!timeout){
-		return ERROR;
-	}
-
-	//eventually setup timeout reg on wireless module to generate a timeout interrupt
-
-	//Read payload
-	sx1231h_setRFMode(spi_device_num, RF_SLEEP);
-	*size = spi_read_register_cs(spi_device_num, REG_FIFO);
-
-	for(i=0; i < size[0]; i++){
-		*buffer++ = spi_read_register_cs(spi_device_num, REG_FIFO);
-	}
-	return 0;
 }
 
 //can listen/rx from 64us to a maximum of 66.81 seconds
